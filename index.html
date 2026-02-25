@@ -188,6 +188,8 @@
         let cantidadesPedido = {}; 
         let currentView = 'pos'; 
 
+        let colaPedidos = JSON.parse(localStorage.getItem('pos_cola_pedidos')) || [];
+        let sincronizando = false;
         // --- INICIALIZACION ---
         window.onload = () => { 
             verificarSeguridad();
@@ -239,6 +241,52 @@
                 throw new Error("Fallo de conexion. Revisa el internet de la tablet.");
             }
         }
+
+        function guardarEnCola(payload) {
+            const pedidoLocal = {
+                idLocal: Date.now().toString(),
+                payload: payload
+            };
+            colaPedidos.push(pedidoLocal);
+            localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
+            procesarCola();
+        }
+
+        async function procesarCola() {
+            // Si no hay internet, si la cola esta vacia, o si ya esta sincronizando, no hacemos nada
+            if (!navigator.onLine || colaPedidos.length === 0 || sincronizando) return;
+            
+            sincronizando = true;
+            const pedidosPendientes = [...colaPedidos];
+
+            for (let i = 0; i < pedidosPendientes.length; i++) {
+                const pedido = pedidosPendientes[i];
+                try {
+                    // Intentamos enviar el pedido a Google
+                    const respuesta = await hacerPeticion(pedido.payload);
+                    
+                    if (respuesta.status === "success") {
+                        // Si es exitoso, lo sacamos de la cola y actualizamos el almacenamiento
+                        colaPedidos = colaPedidos.filter(p => p.idLocal !== pedido.idLocal);
+                        localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
+                        console.log("Pedido atrasado enviado con exito.");
+                    } else {
+                        // Error de servidor (ej. clave incorrecta). Detenemos el ciclo.
+                        console.error("Error del servidor al sincronizar:", respuesta.message);
+                        break; 
+                    }
+                } catch (error) {
+                    // Error de red. Detenemos el ciclo y esperamos al proximo intento.
+                    console.warn("Sin conexion. Sincronizacion pausada.");
+                    break; 
+                }
+            }
+            sincronizando = false;
+        }
+
+        // Escuchadores de eventos para arrancar el motor automaticamente
+        window.addEventListener('online', procesarCola);
+        setInterval(procesarCola, 10000); // Intenta procesar cada 10 segundos por seguridad
 
         async function obtenerDatosBackend() {
             mostrarCarga(true, "Obteniendo datos del dia...");
@@ -334,19 +382,18 @@
             document.getElementById(elementId).innerText = nuevaCantidad;
         }
 
-        async function registrarPedido() {
+        function registrarPedido() {
             const carritoFinal = [];
             
             for (const plato in cantidadesPedido) {
                 if (cantidadesPedido[plato] > 0) {
-                    // Buscamos el precio actual del platillo en el catalogo maestro guardado en memoria
                     const infoPlato = catalogoMaestro.find(p => p.nombre === plato);
                     const precioActual = infoPlato ? infoPlato.precio : 0;
                     
                     carritoFinal.push({ 
                         item: plato, 
                         qty: cantidadesPedido[plato],
-                        precio: precioActual // Agregamos la fotografia del precio historico
+                        precio: precioActual
                     });
                 }
             }
@@ -356,27 +403,20 @@
                 return;
             }
 
-            mostrarCarga(true, "Registrando venta...");
+            // Construimos el paquete
+            const payload = {
+                action: "registrar_pedido",
+                tipo: tipoActual,
+                carrito: carritoFinal
+            };
 
-            try {
-                const respuesta = await hacerPeticion({
-                    action: "registrar_pedido",
-                    tipo: tipoActual,
-                    carrito: carritoFinal
-                });
+            // Interfaz Optimista: Respuesta inmediata al usuario
+            mostrarToast("Pedido registrado");
+            renderizarPOS(); 
+            selectTipo('Salón');
 
-                if (respuesta.status === "success") {
-                    mostrarToast("Pedido registrado: " + respuesta.idPedido);
-                    renderizarPOS(); 
-                    selectTipo('Salón');
-                } else {
-                    alert("Error al registrar: " + respuesta.message);
-                }
-            } catch (error) {
-                alert(error.message);
-            } finally {
-                mostrarCarga(false);
-            }
+            // Enviamos a la cola de procesamiento en lugar de esperar la red
+            guardarEnCola(payload);
         }
 
         // --- LOGICA DE ADMINISTRACION (CONFIGURAR MENU DEL DIA) ---
