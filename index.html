@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>POS Restaurante</title>
+    <style>
+        :root {
+            --primary: #4A90E2;
+            --success: #2ecc71;
+            --bg: #f4f7f6;
+            --text: #333;
+            --card: #fff;
+        }
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
+        body { background-color: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; height: 100vh; touch-action: manipulation; }
+        
+        .header { text-align: center; margin-bottom: 20px; font-size: 1.5rem; color: var(--primary); }
+        
+        /* Tipo de Pedido */
+        .tipo-container { display: flex; gap: 15px; margin-bottom: 30px; }
+        .btn-tipo { flex: 1; padding: 20px; font-size: 1.5rem; font-weight: bold; border: 2px solid #ccc; border-radius: 12px; background: var(--card); color: #888; cursor: pointer; transition: 0.2s; }
+        .btn-tipo.active { border-color: var(--primary); background: var(--primary); color: white; }
+        
+        /* Grilla de Menús */
+        .menus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; }
+        .menu-card { background: var(--card); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        .menu-name { font-size: 1.4rem; font-weight: 600; }
+        .controls { display: flex; align-items: center; gap: 15px; }
+        
+        /* Botones táctiles de cantidad */
+        .btn-qty { width: 50px; height: 50px; border-radius: 50%; border: none; background: #e0e0e0; font-size: 1.8rem; font-weight: bold; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; }
+        .btn-qty:active { background: #ccc; }
+        .qty-display { font-size: 1.8rem; font-weight: bold; min-width: 40px; text-align: center; }
+        
+        /* Botón de Registrar */
+        .btn-submit { width: 100%; padding: 25px; font-size: 1.8rem; font-weight: bold; background: var(--success); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); }
+        .btn-submit:active { transform: scale(0.98); }
+        .btn-submit:disabled { background: #95a5a6; cursor: not-allowed; }
+        
+        /* Notificación Toast */
+        .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 30px 50px; border-radius: 15px; font-size: 2rem; font-weight: bold; display: none; z-index: 1000; }
+        
+        /* Loader */
+        .loader { display: none; margin-left: 10px; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+
+    <h1 class="header">Registro de Pedidos</h1>
+
+    <div class="tipo-container">
+        <button class="btn-tipo active" id="btn-salon" onclick="selectTipo('Salón')">Salón</button>
+        <button class="btn-tipo" id="btn-domicilio" onclick="selectTipo('Domicilio')">Domicilio</button>
+    </div>
+
+    <div class="menus-grid" id="menus-container">
+        </div>
+
+    <button class="btn-submit" id="btn-submit" onclick="registrarPedido()">
+        REGISTRAR PEDIDO <span class="loader" id="loader">⏳</span>
+    </button>
+
+    <div class="toast" id="toast">¡Éxito! ✅</div>
+
+    <script>
+        // --- CONFIGURACIÓN ---
+        // Pega aquí la URL de tu Web App de Google Apps Script
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz73HqnvB4nUrc02KSRxr-NSu1dJ7yj-YcIOg91-lS0LgldRfH4mi4L6UscS8epx9CC/exec'; 
+        
+        let tipoActual = 'Salón';
+        const numMenus = 6;
+        const menusData = Array(numMenus).fill(0);
+
+        // Inicializar interfaz
+        window.onload = () => { renderMenus(); };
+
+        function selectTipo(tipo) {
+            tipoActual = tipo;
+            document.getElementById('btn-salon').classList.toggle('active', tipo === 'Salón');
+            document.getElementById('btn-domicilio').classList.toggle('active', tipo === 'Domicilio');
+        }
+
+        function renderMenus() {
+            const container = document.getElementById('menus-container');
+            container.innerHTML = '';
+            for (let i = 0; i < numMenus; i++) {
+                container.innerHTML += `
+                    <div class="menu-card">
+                        <div class="menu-name">Menú ${i + 1}</div>
+                        <div class="controls">
+                            <button class="btn-qty" onclick="updateQty(${i}, -1)">-</button>
+                            <div class="qty-display" id="qty-${i}">0</div>
+                            <button class="btn-qty" onclick="updateQty(${i}, 1)">+</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        function updateQty(index, change) {
+            let newQty = menusData[index] + change;
+            if (newQty < 0) newQty = 0; // Mínimo 0
+            menusData[index] = newQty;
+            document.getElementById(`qty-${index}`).innerText = newQty;
+        }
+
+        function resetForm() {
+            menusData.fill(0);
+            renderMenus();
+            selectTipo('Salón'); // Volver a Salón por defecto
+        }
+
+        async function registrarPedido() {
+            const btn = document.getElementById('btn-submit');
+            const loader = document.getElementById('loader');
+            
+            // Validar que haya al menos 1 menú seleccionado
+            const totalMenus = menusData.reduce((a, b) => a + b, 0);
+            if (totalMenus === 0) {
+                alert("Debes seleccionar al menos 1 menú para registrar el pedido.");
+                return;
+            }
+
+            const payload = {
+                tipo: tipoActual,
+                menus: menusData
+            };
+
+            // UI de carga
+            btn.disabled = true;
+            loader.style.display = 'inline-block';
+
+            try {
+                // Enviamos los datos a Apps Script usando fetch mode: no-cors para evitar bloqueos del navegador
+                await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors', 
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+
+                // Mostrar éxito
+                const toast = document.getElementById('toast');
+                toast.style.display = 'block';
+                setTimeout(() => { toast.style.display = 'none'; }, 1500);
+
+                // Limpiar todo para el siguiente pedido
+                resetForm();
+
+            } catch (error) {
+                alert("Hubo un error al enviar el pedido. Revisa tu conexión.");
+                console.error(error);
+            } finally {
+                btn.disabled = false;
+                loader.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>
