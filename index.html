@@ -29,77 +29,54 @@
         }
         
         .header-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 25px;
+            display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
         }
 
         .header-title { 
-            font-size: 1.8rem; 
-            color: var(--ocean-deep);
-            font-weight: 700;
-            letter-spacing: 0.5px;
+            font-size: 1.8rem; color: var(--ocean-deep); font-weight: 700; letter-spacing: 0.5px;
         }
 
         .btn-admin-toggle {
-            background: transparent;
-            border: 2px solid var(--ocean-deep);
-            color: var(--ocean-deep);
-            padding: 8px 15px;
-            border-radius: 10px;
-            font-weight: bold;
-            cursor: pointer;
+            background: transparent; border: 2px solid var(--ocean-deep); color: var(--ocean-deep);
+            padding: 8px 15px; border-radius: 10px; font-weight: bold; cursor: pointer;
         }
 
-        .btn-admin-toggle:active {
-            background: var(--ocean-deep);
-            color: var(--pure-white);
-        }
+        .btn-admin-toggle:active { background: var(--ocean-deep); color: var(--pure-white); }
         
-        /* Contenedores de Vistas */
         #pos-view, #admin-view { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
         #admin-view { display: none; }
 
-        /* Tipo de Pedido */
         .tipo-container { display: flex; gap: 15px; margin-bottom: 20px; }
         
         .btn-tipo { 
             flex: 1; padding: 20px; font-size: 1.5rem; font-weight: bold; 
             border: 2px solid #cfdfe6; border-radius: 18px; 
             background: var(--pure-white); color: var(--ocean-deep); 
-            cursor: pointer; transition: all 0.3s ease;
-            box-shadow: 0 4px 6px rgba(0, 91, 150, 0.05);
+            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(0, 91, 150, 0.05);
         }
         
         .btn-tipo.active { 
             background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-light));
             border-color: transparent; color: white; 
-            box-shadow: 0 8px 15px rgba(0, 91, 150, 0.2);
-            transform: translateY(-2px);
+            box-shadow: 0 8px 15px rgba(0, 91, 150, 0.2); transform: translateY(-2px);
         }
         
-        /* Grilla de Menus - Modificada para tarjetas verticales */
         .menus-grid { 
-            display: grid; 
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Ancho minimo reducido para acomodar mas tarjetas */
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
             gap: 15px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; padding-left: 5px; padding-right: 5px;
             align-content: start;
         }
         
-        /* Tarjeta de Menu - Modificada a diseño vertical */
         .menu-card { 
             background: var(--pure-white); padding: 20px 15px; border-radius: 18px; 
             display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
-            border: 1px solid #eef6f8; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08);
-            text-align: center;
+            border: 1px solid #eef6f8; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08); text-align: center;
         }
         
         .menu-info { display: flex; flex-direction: column; align-items: center; width: 100%; }
         .menu-name { font-size: 1.5rem; font-weight: 600; color: var(--text-dark); line-height: 1.2; }
         .menu-price { font-size: 1.2rem; color: var(--ocean-light); font-weight: bold; margin-top: 5px; }
         
-        /* Controles - Modificados para centrarse debajo del texto */
         .controls { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; margin-top: 5px; }
         
         .btn-qty { 
@@ -112,14 +89,22 @@
         .btn-qty:active { background: var(--aqua-accent); color: white; }
         .qty-display { font-size: 2rem; font-weight: bold; min-width: 40px; text-align: center; color: var(--ocean-deep); }
         
-        /* Estilos de la vista de Administracion */
+        /* Estilos del Total del Pedido */
+        .total-container {
+            background: var(--pure-white); border: 2px solid var(--ocean-light); border-radius: 18px;
+            padding: 15px 25px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
+            box-shadow: 0 4px 10px rgba(0, 91, 150, 0.1);
+        }
+
+        .total-label { font-size: 1.5rem; font-weight: bold; color: var(--text-dark); }
+        .total-value { font-size: 2rem; font-weight: bold; color: var(--ocean-deep); }
+
         .admin-header { font-size: 1.2rem; margin-bottom: 15px; color: var(--text-dark); }
         .admin-list { background: var(--pure-white); border-radius: 18px; padding: 15px; flex-grow: 1; overflow-y: auto; margin-bottom: 20px; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08); }
         .admin-item { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #eef6f8; font-size: 1.3rem; }
         .admin-item:last-child { border-bottom: none; }
         .admin-checkbox { width: 25px; height: 25px; margin-right: 15px; accent-color: var(--ocean-deep); }
         
-        /* Botones Generales de Accion */
         .btn-action { 
             width: 100%; padding: 25px; font-size: 1.5rem; font-weight: bold;
             background: linear-gradient(to right, var(--ocean-deep), var(--aqua-accent)); 
@@ -130,7 +115,6 @@
         .btn-action:active { transform: scale(0.98); }
         .btn-action:disabled { background: #bdc3c7; background-image: none; cursor: not-allowed; box-shadow: none; }
         
-        /* Notificaciones y Pantalla de Carga */
         .toast { 
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
             background: rgba(44, 62, 80, 0.9); color: var(--pure-white);
@@ -164,6 +148,11 @@
         <div class="menus-grid" id="menus-container">
             </div>
 
+        <div class="total-container">
+            <span class="total-label">Total Pedido:</span>
+            <span class="total-value" id="order-total">$0</span>
+        </div>
+
         <button class="btn-action" id="btn-submit" onclick="registrarPedido()">REGISTRAR PEDIDO</button>
     </div>
 
@@ -178,7 +167,7 @@
 
     <script>
         // --- CONFIGURACION ---
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyGaUIsw6OF5tfuwoNuqkZvIa-OKN2iTybZfQjBQHLvmREgspGNYcfJtMYnjVb0zPJ/exec'; 
+        const SCRIPT_URL = 'TU_NUEVA_URL_AQUI'; 
         
         // --- ESTADO DE LA APLICACION ---
         let posToken = localStorage.getItem('pos_token_seguridad');
@@ -187,10 +176,9 @@
         let menuDelDiaNombres = []; 
         let cantidadesPedido = {}; 
         let currentView = 'pos'; 
-
         let colaPedidos = JSON.parse(localStorage.getItem('pos_cola_pedidos')) || [];
         let sincronizando = false;
-        // --- INICIALIZACION ---
+
         window.onload = () => { 
             verificarSeguridad();
             if (posToken) {
@@ -226,7 +214,6 @@
             }
         }
 
-        // --- COMUNICACION CON EL BACKEND ---
         async function hacerPeticion(payload) {
             payload.token = posToken;
             try {
@@ -241,52 +228,6 @@
                 throw new Error("Fallo de conexion. Revisa el internet de la tablet.");
             }
         }
-
-        function guardarEnCola(payload) {
-            const pedidoLocal = {
-                idLocal: Date.now().toString(),
-                payload: payload
-            };
-            colaPedidos.push(pedidoLocal);
-            localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
-            procesarCola();
-        }
-
-        async function procesarCola() {
-            // Si no hay internet, si la cola esta vacia, o si ya esta sincronizando, no hacemos nada
-            if (!navigator.onLine || colaPedidos.length === 0 || sincronizando) return;
-            
-            sincronizando = true;
-            const pedidosPendientes = [...colaPedidos];
-
-            for (let i = 0; i < pedidosPendientes.length; i++) {
-                const pedido = pedidosPendientes[i];
-                try {
-                    // Intentamos enviar el pedido a Google
-                    const respuesta = await hacerPeticion(pedido.payload);
-                    
-                    if (respuesta.status === "success") {
-                        // Si es exitoso, lo sacamos de la cola y actualizamos el almacenamiento
-                        colaPedidos = colaPedidos.filter(p => p.idLocal !== pedido.idLocal);
-                        localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
-                        console.log("Pedido atrasado enviado con exito.");
-                    } else {
-                        // Error de servidor (ej. clave incorrecta). Detenemos el ciclo.
-                        console.error("Error del servidor al sincronizar:", respuesta.message);
-                        break; 
-                    }
-                } catch (error) {
-                    // Error de red. Detenemos el ciclo y esperamos al proximo intento.
-                    console.warn("Sin conexion. Sincronizacion pausada.");
-                    break; 
-                }
-            }
-            sincronizando = false;
-        }
-
-        // Escuchadores de eventos para arrancar el motor automaticamente
-        window.addEventListener('online', procesarCola);
-        setInterval(procesarCola, 10000); // Intenta procesar cada 10 segundos por seguridad
 
         async function obtenerDatosBackend() {
             mostrarCarga(true, "Obteniendo datos del dia...");
@@ -307,7 +248,6 @@
             }
         }
 
-        // --- LOGICA DE INTERFAZ (UI) ---
         function toggleView() {
             if (currentView === 'pos') {
                 document.getElementById('pos-view').style.display = 'none';
@@ -341,7 +281,18 @@
             overlay.style.display = mostrar ? 'flex' : 'none';
         }
 
-        // --- LOGICA DEL CARRITO (POS) ---
+        function calcularTotal() {
+            let total = 0;
+            for (const plato in cantidadesPedido) {
+                if (cantidadesPedido[plato] > 0) {
+                    const infoPlato = catalogoMaestro.find(p => p.nombre === plato);
+                    const precioActual = infoPlato ? infoPlato.precio : 0;
+                    total += (cantidadesPedido[plato] * precioActual);
+                }
+            }
+            document.getElementById('order-total').innerText = '$' + total.toLocaleString('es-CO');
+        }
+
         function renderizarPOS() {
             const container = document.getElementById('menus-container');
             container.innerHTML = '';
@@ -351,6 +302,7 @@
 
             if (platosDeHoy.length === 0) {
                 container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; margin-top: 50px; font-size: 1.2rem;">No hay menus configurados para hoy. Usa el boton superior derecho para seleccionarlos.</div>';
+                calcularTotal();
                 return;
             }
 
@@ -373,6 +325,7 @@
                     </div>
                 `;
             });
+            calcularTotal();
         }
 
         function actualizarCantidad(nombrePlato, cambio, elementId) {
@@ -380,7 +333,48 @@
             if (nuevaCantidad < 0) nuevaCantidad = 0;
             cantidadesPedido[nombrePlato] = nuevaCantidad;
             document.getElementById(elementId).innerText = nuevaCantidad;
+            calcularTotal();
         }
+
+        // --- MOTOR DE COLA LOCAL (OFFLINE) ---
+        function guardarEnCola(payload) {
+            const pedidoLocal = {
+                idLocal: Date.now().toString(),
+                payload: payload
+            };
+            colaPedidos.push(pedidoLocal);
+            localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
+            procesarCola();
+        }
+
+        async function procesarCola() {
+            if (!navigator.onLine || colaPedidos.length === 0 || sincronizando) return;
+            
+            sincronizando = true;
+            const pedidosPendientes = [...colaPedidos];
+
+            for (let i = 0; i < pedidosPendientes.length; i++) {
+                const pedido = pedidosPendientes[i];
+                try {
+                    const respuesta = await hacerPeticion(pedido.payload);
+                    if (respuesta.status === "success") {
+                        colaPedidos = colaPedidos.filter(p => p.idLocal !== pedido.idLocal);
+                        localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
+                        console.log("Pedido sincronizado exitosamente.");
+                    } else {
+                        console.error("Error del servidor:", respuesta.message);
+                        break; 
+                    }
+                } catch (error) {
+                    console.warn("Conexion inestable. Sincronizacion pausada.");
+                    break; 
+                }
+            }
+            sincronizando = false;
+        }
+
+        window.addEventListener('online', procesarCola);
+        setInterval(procesarCola, 10000);
 
         function registrarPedido() {
             const carritoFinal = [];
@@ -403,23 +397,19 @@
                 return;
             }
 
-            // Construimos el paquete
             const payload = {
                 action: "registrar_pedido",
                 tipo: tipoActual,
                 carrito: carritoFinal
             };
 
-            // Interfaz Optimista: Respuesta inmediata al usuario
             mostrarToast("Pedido registrado");
             renderizarPOS(); 
             selectTipo('Salón');
 
-            // Enviamos a la cola de procesamiento en lugar de esperar la red
             guardarEnCola(payload);
         }
 
-        // --- LOGICA DE ADMINISTRACION (CONFIGURAR MENU DEL DIA) ---
         function renderizarAdmin() {
             const container = document.getElementById('admin-list-container');
             container.innerHTML = '';
