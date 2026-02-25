@@ -6,74 +6,273 @@
     <title>POS Restaurante</title>
     <style>
         :root {
-            --primary: #4A90E2;
-            --success: #2ecc71;
-            --bg: #f4f7f6;
-            --text: #333;
-            --card: #fff;
+            --ocean-deep: #005b96;
+            --ocean-light: #0277bd;
+            --aqua-accent: #00a8cc;
+            --sand-white: #f4f8f9;
+            --pure-white: #ffffff;
+            --text-dark: #2c3e50;
+            --success-seafoam: #20c997;
         }
+
         * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-        body { background-color: var(--bg); color: var(--text); padding: 20px; display: flex; flex-direction: column; height: 100vh; touch-action: manipulation; }
         
-        .header { text-align: center; margin-bottom: 20px; font-size: 1.5rem; color: var(--primary); }
+        body { 
+            background-color: var(--sand-white);
+            background-image: linear-gradient(to bottom, #eef6f8 0%, var(--sand-white) 100%);
+            color: var(--text-dark);
+            padding: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            height: 100vh; 
+            touch-action: manipulation;
+        }
         
+        .header-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        .header-title { 
+            font-size: 1.8rem; 
+            color: var(--ocean-deep);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-admin-toggle {
+            background: transparent;
+            border: 2px solid var(--ocean-deep);
+            color: var(--ocean-deep);
+            padding: 8px 15px;
+            border-radius: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-admin-toggle:active {
+            background: var(--ocean-deep);
+            color: var(--pure-white);
+        }
+        
+        /* Contenedores de Vistas */
+        #pos-view, #admin-view { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
+        #admin-view { display: none; }
+
         /* Tipo de Pedido */
-        .tipo-container { display: flex; gap: 15px; margin-bottom: 30px; }
-        .btn-tipo { flex: 1; padding: 20px; font-size: 1.5rem; font-weight: bold; border: 2px solid #ccc; border-radius: 12px; background: var(--card); color: #888; cursor: pointer; transition: 0.2s; }
-        .btn-tipo.active { border-color: var(--primary); background: var(--primary); color: white; }
+        .tipo-container { display: flex; gap: 15px; margin-bottom: 20px; }
         
-        /* Grilla de Menús */
-        .menus-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; }
-        .menu-card { background: var(--card); padding: 15px 20px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-        .menu-name { font-size: 1.4rem; font-weight: 600; }
-        .controls { display: flex; align-items: center; gap: 15px; }
+        .btn-tipo { 
+            flex: 1; padding: 20px; font-size: 1.5rem; font-weight: bold; 
+            border: 2px solid #cfdfe6; border-radius: 18px; 
+            background: var(--pure-white); color: var(--ocean-deep); 
+            cursor: pointer; transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 91, 150, 0.05);
+        }
         
-        /* Botones táctiles de cantidad */
-        .btn-qty { width: 50px; height: 50px; border-radius: 50%; border: none; background: #e0e0e0; font-size: 1.8rem; font-weight: bold; color: var(--text); cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; }
-        .btn-qty:active { background: #ccc; }
-        .qty-display { font-size: 1.8rem; font-weight: bold; min-width: 40px; text-align: center; }
+        .btn-tipo.active { 
+            background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-light));
+            border-color: transparent; color: white; 
+            box-shadow: 0 8px 15px rgba(0, 91, 150, 0.2);
+            transform: translateY(-2px);
+        }
         
-        /* Botón de Registrar */
-        .btn-submit { width: 100%; padding: 25px; font-size: 1.8rem; font-weight: bold; background: var(--success); color: white; border: none; border-radius: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(46, 204, 113, 0.4); }
-        .btn-submit:active { transform: scale(0.98); }
-        .btn-submit:disabled { background: #95a5a6; cursor: not-allowed; }
+        /* Grilla de Menus - Modificada para tarjetas verticales */
+        .menus-grid { 
+            display: grid; 
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); /* Ancho minimo reducido para acomodar mas tarjetas */
+            gap: 15px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; padding-left: 5px; padding-right: 5px;
+            align-content: start;
+        }
         
-        /* Notificación Toast */
-        .toast { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.8); color: white; padding: 30px 50px; border-radius: 15px; font-size: 2rem; font-weight: bold; display: none; z-index: 1000; }
+        /* Tarjeta de Menu - Modificada a diseño vertical */
+        .menu-card { 
+            background: var(--pure-white); padding: 20px 15px; border-radius: 18px; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
+            border: 1px solid #eef6f8; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08);
+            text-align: center;
+        }
         
-        /* Loader */
-        .loader { display: none; margin-left: 10px; font-size: 1.2rem; }
+        .menu-info { display: flex; flex-direction: column; align-items: center; width: 100%; }
+        .menu-name { font-size: 1.5rem; font-weight: 600; color: var(--text-dark); line-height: 1.2; }
+        .menu-price { font-size: 1.2rem; color: var(--ocean-light); font-weight: bold; margin-top: 5px; }
+        
+        /* Controles - Modificados para centrarse debajo del texto */
+        .controls { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; margin-top: 5px; }
+        
+        .btn-qty { 
+            width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--aqua-accent);
+            background: var(--pure-white); font-size: 2rem; font-weight: bold; 
+            color: var(--aqua-accent); cursor: pointer; display: flex; align-items: center; 
+            justify-content: center; user-select: none;
+        }
+        
+        .btn-qty:active { background: var(--aqua-accent); color: white; }
+        .qty-display { font-size: 2rem; font-weight: bold; min-width: 40px; text-align: center; color: var(--ocean-deep); }
+        
+        /* Estilos de la vista de Administracion */
+        .admin-header { font-size: 1.2rem; margin-bottom: 15px; color: var(--text-dark); }
+        .admin-list { background: var(--pure-white); border-radius: 18px; padding: 15px; flex-grow: 1; overflow-y: auto; margin-bottom: 20px; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08); }
+        .admin-item { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #eef6f8; font-size: 1.3rem; }
+        .admin-item:last-child { border-bottom: none; }
+        .admin-checkbox { width: 25px; height: 25px; margin-right: 15px; accent-color: var(--ocean-deep); }
+        
+        /* Botones Generales de Accion */
+        .btn-action { 
+            width: 100%; padding: 25px; font-size: 1.5rem; font-weight: bold;
+            background: linear-gradient(to right, var(--ocean-deep), var(--aqua-accent)); 
+            color: white; border: none; border-radius: 18px; cursor: pointer; 
+            box-shadow: 0 6px 20px rgba(0, 91, 150, 0.3);
+        }
+        
+        .btn-action:active { transform: scale(0.98); }
+        .btn-action:disabled { background: #bdc3c7; background-image: none; cursor: not-allowed; box-shadow: none; }
+        
+        /* Notificaciones y Pantalla de Carga */
+        .toast { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            background: rgba(44, 62, 80, 0.9); color: var(--pure-white);
+            padding: 30px 50px; border-radius: 20px; font-size: 1.5rem; font-weight: bold; 
+            display: none; z-index: 1000; text-align: center;
+        }
+        
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.9); z-index: 2000;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            font-size: 1.5rem; color: var(--ocean-deep); font-weight: bold; display: none;
+        }
     </style>
 </head>
 <body>
 
-    <h1 class="header">Registro de Pedidos</h1>
+    <div id="loading-overlay">Sincronizando con la base de datos...</div>
 
-    <div class="tipo-container">
-        <button class="btn-tipo active" id="btn-salon" onclick="selectTipo('Salón')">Salón</button>
-        <button class="btn-tipo" id="btn-domicilio" onclick="selectTipo('Domicilio')">Domicilio</button>
+    <div class="header-container">
+        <h1 class="header-title" onclick="resetearClave()">Registro de Pedidos</h1>
+        <button class="btn-admin-toggle" id="btn-toggle" onclick="toggleView()">Configurar Menu</button>
     </div>
 
-    <div class="menus-grid" id="menus-container">
+    <div id="pos-view">
+        <div class="tipo-container">
+            <button class="btn-tipo active" id="btn-salon" onclick="selectTipo('Salón')">Salón</button>
+            <button class="btn-tipo" id="btn-domicilio" onclick="selectTipo('Domicilio')">Domicilio</button>
         </div>
 
-    <button class="btn-submit" id="btn-submit" onclick="registrarPedido()">
-        REGISTRAR PEDIDO <span class="loader" id="loader">⏳</span>
-    </button>
+        <div class="menus-grid" id="menus-container">
+            </div>
 
-    <div class="toast" id="toast">¡Éxito! ✅</div>
+        <button class="btn-action" id="btn-submit" onclick="registrarPedido()">REGISTRAR PEDIDO</button>
+    </div>
+
+    <div id="admin-view">
+        <div class="admin-header">Selecciona los platillos disponibles para el dia de hoy:</div>
+        <div class="admin-list" id="admin-list-container">
+            </div>
+        <button class="btn-action" id="btn-save-menu" onclick="guardarMenuDia()">GUARDAR MENU DEL DIA</button>
+    </div>
+
+    <div class="toast" id="toast">Operacion exitosa</div>
 
     <script>
-        // --- CONFIGURACIÓN ---
-        // Pega aquí la URL de tu Web App de Google Apps Script
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz73HqnvB4nUrc02KSRxr-NSu1dJ7yj-YcIOg91-lS0LgldRfH4mi4L6UscS8epx9CC/exec'; 
+        // --- CONFIGURACION ---
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx6zz3GWPc2dbNGzJ6_Ops1ywLC-4lkwH3jZsDd0pwEdD-4cECp42Eo40ymdwogosuE/exec'; 
         
+        // --- ESTADO DE LA APLICACION ---
+        let posToken = localStorage.getItem('pos_token_seguridad');
         let tipoActual = 'Salón';
-        const numMenus = 6;
-        const menusData = Array(numMenus).fill(0);
+        let catalogoMaestro = []; 
+        let menuDelDiaNombres = []; 
+        let cantidadesPedido = {}; 
+        let currentView = 'pos'; 
 
-        // Inicializar interfaz
-        window.onload = () => { renderMenus(); };
+        // --- INICIALIZACION ---
+        window.onload = () => { 
+            verificarSeguridad();
+            if (posToken) {
+                obtenerDatosBackend();
+            }
+        };
+
+        function verificarSeguridad() {
+            if (!posToken) {
+                posToken = prompt("Seguridad: Ingresa la clave de autorizacion para este dispositivo:");
+                if (posToken) {
+                    localStorage.setItem('pos_token_seguridad', posToken);
+                } else {
+                    alert("No podras operar el sistema sin la clave de seguridad. Recarga la pagina.");
+                }
+            }
+        }
+
+        let clickCount = 0;
+        let clickTimer = null;
+        function resetearClave() {
+            clickCount++;
+            if (clickCount === 1) {
+                clickTimer = setTimeout(() => { clickCount = 0; }, 3000);
+            }
+            if (clickCount >= 5) {
+                clearTimeout(clickTimer);
+                localStorage.removeItem('pos_token_seguridad');
+                posToken = null;
+                clickCount = 0;
+                alert("Clave de seguridad eliminada del dispositivo.");
+                verificarSeguridad();
+            }
+        }
+
+        // --- COMUNICACION CON EL BACKEND ---
+        async function hacerPeticion(payload) {
+            payload.token = posToken;
+            try {
+                const response = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain' },
+                    body: JSON.stringify(payload)
+                });
+                return await response.json();
+            } catch (error) {
+                console.error(error);
+                throw new Error("Fallo de conexion. Revisa el internet de la tablet.");
+            }
+        }
+
+        async function obtenerDatosBackend() {
+            mostrarCarga(true, "Obteniendo datos del dia...");
+            try {
+                const respuesta = await hacerPeticion({ action: "obtener_datos" });
+                if (respuesta.status === "success") {
+                    catalogoMaestro = respuesta.catalogo;
+                    menuDelDiaNombres = respuesta.menuDia;
+                    renderizarPOS();
+                    renderizarAdmin();
+                } else {
+                    alert("Error del servidor: " + respuesta.message);
+                }
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                mostrarCarga(false);
+            }
+        }
+
+        // --- LOGICA DE INTERFAZ (UI) ---
+        function toggleView() {
+            if (currentView === 'pos') {
+                document.getElementById('pos-view').style.display = 'none';
+                document.getElementById('admin-view').style.display = 'flex';
+                document.getElementById('btn-toggle').innerText = 'Volver a Ventas';
+                currentView = 'admin';
+            } else {
+                document.getElementById('admin-view').style.display = 'none';
+                document.getElementById('pos-view').style.display = 'flex';
+                document.getElementById('btn-toggle').innerText = 'Configurar Menu';
+                currentView = 'pos';
+            }
+        }
 
         function selectTipo(tipo) {
             tipoActual = tipo;
@@ -81,79 +280,136 @@
             document.getElementById('btn-domicilio').classList.toggle('active', tipo === 'Domicilio');
         }
 
-        function renderMenus() {
+        function mostrarToast(mensaje) {
+            const toast = document.getElementById('toast');
+            toast.innerText = mensaje;
+            toast.style.display = 'block';
+            setTimeout(() => { toast.style.display = 'none'; }, 2000);
+        }
+
+        function mostrarCarga(mostrar, texto = "Procesando...") {
+            const overlay = document.getElementById('loading-overlay');
+            overlay.innerText = texto;
+            overlay.style.display = mostrar ? 'flex' : 'none';
+        }
+
+        // --- LOGICA DEL CARRITO (POS) ---
+        function renderizarPOS() {
             const container = document.getElementById('menus-container');
             container.innerHTML = '';
-            for (let i = 0; i < numMenus; i++) {
-                container.innerHTML += `
-                    <div class="menu-card">
-                        <div class="menu-name">Menú ${i + 1}</div>
-                        <div class="controls">
-                            <button class="btn-qty" onclick="updateQty(${i}, -1)">-</button>
-                            <div class="qty-display" id="qty-${i}">0</div>
-                            <button class="btn-qty" onclick="updateQty(${i}, 1)">+</button>
-                        </div>
-                    </div>
-                `;
-            }
-        }
+            cantidadesPedido = {}; 
 
-        function updateQty(index, change) {
-            let newQty = menusData[index] + change;
-            if (newQty < 0) newQty = 0; // Mínimo 0
-            menusData[index] = newQty;
-            document.getElementById(`qty-${index}`).innerText = newQty;
-        }
+            const platosDeHoy = catalogoMaestro.filter(plato => menuDelDiaNombres.includes(plato.nombre));
 
-        function resetForm() {
-            menusData.fill(0);
-            renderMenus();
-            selectTipo('Salón'); // Volver a Salón por defecto
-        }
-
-        async function registrarPedido() {
-            const btn = document.getElementById('btn-submit');
-            const loader = document.getElementById('loader');
-            
-            // Validar que haya al menos 1 menú seleccionado
-            const totalMenus = menusData.reduce((a, b) => a + b, 0);
-            if (totalMenus === 0) {
-                alert("Debes seleccionar al menos 1 menú para registrar el pedido.");
+            if (platosDeHoy.length === 0) {
+                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; margin-top: 50px; font-size: 1.2rem;">No hay menus configurados para hoy. Usa el boton superior derecho para seleccionarlos.</div>';
                 return;
             }
 
-            const payload = {
-                tipo: tipoActual,
-                menus: menusData
-            };
+            platosDeHoy.forEach((plato, index) => {
+                const precioFormateado = plato.precio.toLocaleString('es-CO');
+                cantidadesPedido[plato.nombre] = 0;
+                const elementId = "qty-" + index;
 
-            // UI de carga
-            btn.disabled = true;
-            loader.style.display = 'inline-block';
+                container.innerHTML += `
+                    <div class="menu-card">
+                        <div class="menu-info">
+                            <div class="menu-name">${plato.nombre}</div>
+                            <div class="menu-price">$${precioFormateado}</div>
+                        </div>
+                        <div class="controls">
+                            <button class="btn-qty" onclick="actualizarCantidad('${plato.nombre}', -1, '${elementId}')">-</button>
+                            <div class="qty-display" id="${elementId}">0</div>
+                            <button class="btn-qty" onclick="actualizarCantidad('${plato.nombre}', 1, '${elementId}')">+</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        function actualizarCantidad(nombrePlato, cambio, elementId) {
+            let nuevaCantidad = (cantidadesPedido[nombrePlato] || 0) + cambio;
+            if (nuevaCantidad < 0) nuevaCantidad = 0;
+            cantidadesPedido[nombrePlato] = nuevaCantidad;
+            document.getElementById(elementId).innerText = nuevaCantidad;
+        }
+
+        async function registrarPedido() {
+            const carritoFinal = [];
+            for (const plato in cantidadesPedido) {
+                if (cantidadesPedido[plato] > 0) {
+                    carritoFinal.push({ item: plato, qty: cantidadesPedido[plato] });
+                }
+            }
+
+            if (carritoFinal.length === 0) {
+                alert("Debes agregar al menos un platillo para registrar el pedido.");
+                return;
+            }
+
+            mostrarCarga(true, "Registrando venta...");
 
             try {
-                // Enviamos los datos a Apps Script usando fetch mode: no-cors para evitar bloqueos del navegador
-                await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    mode: 'no-cors', 
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
+                const respuesta = await hacerPeticion({
+                    action: "registrar_pedido",
+                    tipo: tipoActual,
+                    carrito: carritoFinal
                 });
 
-                // Mostrar éxito
-                const toast = document.getElementById('toast');
-                toast.style.display = 'block';
-                setTimeout(() => { toast.style.display = 'none'; }, 1500);
-
-                // Limpiar todo para el siguiente pedido
-                resetForm();
-
+                if (respuesta.status === "success") {
+                    mostrarToast("Pedido registrado: " + respuesta.idPedido);
+                    renderizarPOS(); 
+                    selectTipo('Salón');
+                } else {
+                    alert("Error al registrar: " + respuesta.message);
+                }
             } catch (error) {
-                alert("Hubo un error al enviar el pedido. Revisa tu conexión.");
-                console.error(error);
+                alert(error.message);
             } finally {
-                btn.disabled = false;
-                loader.style.display = 'none';
+                mostrarCarga(false);
+            }
+        }
+
+        // --- LOGICA DE ADMINISTRACION (CONFIGURAR MENU DEL DIA) ---
+        function renderizarAdmin() {
+            const container = document.getElementById('admin-list-container');
+            container.innerHTML = '';
+
+            catalogoMaestro.forEach((plato, index) => {
+                const estaSeleccionado = menuDelDiaNombres.includes(plato.nombre) ? 'checked' : '';
+                container.innerHTML += `
+                    <div class="admin-item">
+                        <input type="checkbox" class="admin-checkbox" id="chk-${index}" value="${plato.nombre}" ${estaSeleccionado}>
+                        <label for="chk-${index}">${plato.nombre}</label>
+                    </div>
+                `;
+            });
+        }
+
+        async function guardarMenuDia() {
+            const checkboxes = document.querySelectorAll('.admin-checkbox:checked');
+            const seleccionados = Array.from(checkboxes).map(cb => cb.value);
+
+            mostrarCarga(true, "Guardando menu del dia...");
+
+            try {
+                const respuesta = await hacerPeticion({
+                    action: "guardar_menu_dia",
+                    menus: seleccionados
+                });
+
+                if (respuesta.status === "success") {
+                    menuDelDiaNombres = seleccionados; 
+                    mostrarToast("Menu actualizado");
+                    renderizarPOS(); 
+                    toggleView(); 
+                } else {
+                    alert("Error al guardar: " + respuesta.message);
+                }
+            } catch (error) {
+                alert(error.message);
+            } finally {
+                mostrarCarga(false);
             }
         }
     </script>
