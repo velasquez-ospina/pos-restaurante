@@ -336,9 +336,18 @@
 
         async function registrarPedido() {
             const carritoFinal = [];
+            
             for (const plato in cantidadesPedido) {
                 if (cantidadesPedido[plato] > 0) {
-                    carritoFinal.push({ item: plato, qty: cantidadesPedido[plato] });
+                    // Buscamos el precio actual del platillo en el catalogo maestro guardado en memoria
+                    const infoPlato = catalogoMaestro.find(p => p.nombre === plato);
+                    const precioActual = infoPlato ? infoPlato.precio : 0;
+                    
+                    carritoFinal.push({ 
+                        item: plato, 
+                        qty: cantidadesPedido[plato],
+                        precio: precioActual // Agregamos la fotografia del precio historico
+                    });
                 }
             }
 
