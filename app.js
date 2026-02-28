@@ -718,6 +718,14 @@ const historial = {
 
             const itemsHTML = renderItems(platos) + separador + renderItems(bebidas);
 
+            // Domicilio (solo si aplica)
+            const domicilioHTML = (pedido.tipo === 'Domicilio' && pedido.domicilioPara)
+                ? `<div class="historial-domicilio">
+                       <span class="historial-domicilio-icon">📍</span>
+                       <span><strong>${pedido.domicilioPara}</strong> — ${pedido.domicilioQuien}</span>
+                   </div>`
+                : '';
+
             // Total (solo si > 0, es decir si hay platos)
             const totalStr = pedido.total > 0
                 ? `<div class="historial-total">Total: $${pedido.total.toLocaleString('es-CO')}</div>`
@@ -732,6 +740,7 @@ const historial = {
                     ${tipoBadge}
                 </div>
                 <div class="historial-items">${itemsHTML}</div>
+                ${domicilioHTML}
                 ${totalStr}`;
 
             container.appendChild(card);

@@ -671,3 +671,16 @@ body {
     border-top: 1px solid #ddeaf0;
     margin: 5px 0;
 }
+
+/* Información de domicilio en tarjeta de historial */
+.historial-domicilio {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.95rem;
+    color: #c0720b;
+    background: #fef3e0;
+    border-radius: 8px;
+    padding: 7px 11px;
+}
+.historial-domicilio-icon { font-size: 1rem; }
