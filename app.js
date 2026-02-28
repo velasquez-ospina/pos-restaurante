@@ -19,7 +19,7 @@
 // 1. CONFIGURACIÓN
 // ─────────────────────────────────────────────
 const CONFIG = {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz50sokQUW-MZb5VPTA9S1yFepxR2IAQVve5tTuKGbDCCE8yp-ssHscMWNgldRg09dR/exec',
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycby2nPszJhWs7QK1ubxpTVzzOybVrpsN6HcJUueRN-qn40CPvjBjGaYdOG6-tgkJMID6/exec',
     TOAST_DURATION_MS:        2000,
     SYNC_INTERVAL_MS:         10_000,
     SECURITY_CLICK_THRESHOLD: 5,
@@ -42,6 +42,7 @@ const state = {
     // Navegación
     currentView:         'home',    // 'home' | 'pos' | 'admin'
     tipoServicio:        null,      // 'Desayuno' | 'Almuerzo'  (elegido en home)
+    origenAdmin:         'home',    // 'home' | 'pos'
 
     // Pedido
     tipoActual:          'Salón',   // 'Salón' | 'Domicilio'
@@ -93,9 +94,9 @@ const app = {
     /** Desde inicio va directo a Admin para configurar un tipo de servicio */
     async irAAdmin(tipoServicio) {
         state.tipoServicio = tipoServicio;
+        state.currentView  = 'admin';   // señal para que obtenerDatosBackend abra Admin
+        state.origenAdmin  = 'home';
         await api.obtenerDatosBackend();
-        // Después de cargar datos, abrir Admin en lugar de POS
-        app._abrirAdmin();
     },
 
     /** Volver a la pantalla de inicio */
@@ -117,7 +118,16 @@ const app = {
         document.getElementById('app-header').style.display  = 'flex';
         document.getElementById('pos-view').style.display    = 'flex';
         document.getElementById('admin-view').style.display  = 'none';
-        document.getElementById('btn-toggle').innerText      = 'Configurar Menú';
+
+        // El botón de configurar menú solo es visible en Desayuno (flujo normal)
+        // Para Almuerzo se oculta — solo se accede desde la pantalla de inicio
+        const btnToggle = document.getElementById('btn-toggle');
+        if (state.tipoServicio === 'Desayuno') {
+            btnToggle.style.display = 'block';
+            btnToggle.innerText = 'Configurar Menú';
+        } else {
+            btnToggle.style.display = 'none';
+        }
 
         // Badge de servicio en el título
         const badge = state.tipoServicio === 'Desayuno'
@@ -133,7 +143,16 @@ const app = {
         document.getElementById('app-header').style.display  = 'flex';
         document.getElementById('pos-view').style.display    = 'none';
         document.getElementById('admin-view').style.display  = 'flex';
-        document.getElementById('btn-toggle').innerText      = 'Volver a Ventas';
+
+        // En admin el botón sirve para volver al POS (solo aplica si venimos desde POS de Desayuno)
+        const btnToggle = document.getElementById('btn-toggle');
+        if (state.origenAdmin === 'pos') {
+            btnToggle.style.display = 'block';
+            btnToggle.innerText = 'Volver a Ventas';
+        } else {
+            // Vinimos desde la pantalla de inicio → no hay POS al que volver
+            btnToggle.style.display = 'none';
+        }
 
         const badge = state.tipoServicio === 'Desayuno'
             ? `<span class="badge-servicio badge-desayuno">☀️ Desayuno</span>`
@@ -609,6 +628,7 @@ const admin = {
 const ui = {
     toggleView() {
         if (state.currentView === 'pos') {
+            state.origenAdmin = 'pos';
             admin.renderizar(); // también llama a app._abrirAdmin()
         } else {
             app._abrirPOS();
