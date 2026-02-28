@@ -664,3 +664,10 @@ body {
     background: var(--ocean-deep);
     color: white;
 }
+
+/* Divisor entre platos y bebidas en el historial */
+.historial-items-divider {
+    border: none;
+    border-top: 1px solid #ddeaf0;
+    margin: 5px 0;
+}

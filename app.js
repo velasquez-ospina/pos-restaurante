@@ -697,8 +697,11 @@ const historial = {
             const tipoSlug = pedido.tipo.toLowerCase().replace(/ /g, '-');
             const tipoBadge = `<span class="historial-tipo historial-tipo-${tipoSlug}">${pedido.tipo}</span>`;
 
-            // Lista de ítems (sin precio para bebidas, con precio para platos)
-            const itemsHTML = pedido.items.map(it => {
+            // Separar platos y bebidas para mostrar con divisor visual
+            const platos  = pedido.items.filter(it => it.categoria === 'Plato');
+            const bebidas  = pedido.items.filter(it => it.categoria === 'Bebida');
+
+            const renderItems = (items) => items.map(it => {
                 const precioStr = it.precio > 0
                     ? `<span class="historial-item-precio">$${it.precio.toLocaleString('es-CO')}</span>`
                     : '';
@@ -708,6 +711,12 @@ const historial = {
                     ${precioStr}
                 </div>`;
             }).join('');
+
+            const separador = (platos.length > 0 && bebidas.length > 0)
+                ? '<div class="historial-items-divider"></div>'
+                : '';
+
+            const itemsHTML = renderItems(platos) + separador + renderItems(bebidas);
 
             // Total (solo si > 0, es decir si hay platos)
             const totalStr = pedido.total > 0
