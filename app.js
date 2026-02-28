@@ -180,8 +180,10 @@ const cola = {
 // ─────────────────────────────────────────────
 const pos = {
     renderizar() {
-        const container = document.getElementById('menus-container');
-        container.innerHTML = '';
+        // Reemplazar el nodo elimina todos los listeners acumulados de llamadas anteriores
+        const old = document.getElementById('menus-container');
+        const container = old.cloneNode(false);
+        old.parentNode.replaceChild(container, old);
         state.cantidadesPedido = {};
 
         const platosDeHoy = state.catalogoMaestro.filter(p =>
@@ -311,8 +313,23 @@ const pos = {
         };
 
         ui.mostrarToast('Pedido registrado');
+        const tipoTras = state.tipoActual; // guardar antes de renderizar
         pos.renderizar();
-        pos.selectTipo('Salón');
+
+        if (tipoTras === 'Domicilio') {
+            // Mantener pestaña Domicilio, solo limpiar los campos
+            pos.selectTipo('Domicilio');
+            state.domicilioPara  = '';
+            state.domicilioQuien = '';
+            const inputPara  = document.getElementById('domicilio-para');
+            const inputQuien = document.getElementById('domicilio-quien');
+            if (inputPara)  inputPara.value  = '';
+            if (inputQuien) inputQuien.value = '';
+            domicilioAutocomplete.limpiarSugerencias();
+        } else {
+            pos.selectTipo('Salón');
+        }
+
         cola.guardar(payload);
     },
 };
