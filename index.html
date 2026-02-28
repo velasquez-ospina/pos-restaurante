@@ -41,7 +41,10 @@
             <button class="btn-back" id="btn-back">← Inicio</button>
             <h1 class="header-title" id="header-title">Pedidos</h1>
         </div>
-        <button class="btn-admin-toggle" id="btn-toggle">Configurar Menú</button>
+        <div class="header-right">
+            <button class="btn-historial-toggle" id="btn-historial">🕐 Historial</button>
+            <button class="btn-admin-toggle" id="btn-toggle">Configurar Menú</button>
+        </div>
     </div>
 
     <!-- ══════════════════════════════════════
@@ -91,6 +94,16 @@
     </div>
 
     <!-- ══════════════════════════════════════
+         VISTA HISTORIAL
+    ══════════════════════════════════════ -->
+    <div id="historial-view" style="display:none;">
+        <div id="historial-container">
+            <div class="historial-empty">Cargando historial...</div>
+        </div>
+        <button class="btn-action btn-action-secondary" id="btn-refresh-historial">↻ Actualizar</button>
+    </div>
+
+    <!-- ══════════════════════════════════════
          VISTA ADMIN
     ══════════════════════════════════════ -->
     <div id="admin-view" style="display:none;">
@@ -135,6 +148,10 @@
         document.getElementById('btn-domicilio').addEventListener('click',  () => pos.selectTipo('Domicilio'));
         document.getElementById('btn-para-llevar').addEventListener('click',() => pos.selectTipo('Para Llevar'));
         document.getElementById('btn-submit').addEventListener('click',    () => pos.registrarPedido());
+
+        // ── Historial ──
+        document.getElementById('btn-historial').addEventListener('click',         () => historial.toggle());
+        document.getElementById('btn-refresh-historial').addEventListener('click', () => historial.cargar());
 
         // ── Admin tabs ──
         document.getElementById('tab-platos').addEventListener('click',  () => admin.selectTab('platos'));

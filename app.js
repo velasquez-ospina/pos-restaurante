@@ -60,6 +60,9 @@ const state = {
     // Clientes para autocomplete
     listaClientes:       [],
 
+    // Historial de pedidos
+    historialPedidos:    [],
+
     // Domicilio
     domicilioPara:       '',
     domicilioQuien:      '',
@@ -105,19 +108,24 @@ const app = {
         state.currentView   = 'home';
         state.tipoActual    = 'Salón';
 
-        document.getElementById('home-view').style.display   = 'flex';
-        document.getElementById('app-header').style.display  = 'none';
-        document.getElementById('pos-view').style.display    = 'none';
-        document.getElementById('admin-view').style.display  = 'none';
+        document.getElementById('home-view').style.display      = 'flex';
+        document.getElementById('app-header').style.display     = 'none';
+        document.getElementById('pos-view').style.display       = 'none';
+        document.getElementById('historial-view').style.display = 'none';
+        document.getElementById('admin-view').style.display     = 'none';
     },
 
     /** Muestra header + POS, oculta el resto */
     _abrirPOS() {
         state.currentView = 'pos';
-        document.getElementById('home-view').style.display   = 'none';
-        document.getElementById('app-header').style.display  = 'flex';
-        document.getElementById('pos-view').style.display    = 'flex';
-        document.getElementById('admin-view').style.display  = 'none';
+        document.getElementById('home-view').style.display      = 'none';
+        document.getElementById('app-header').style.display     = 'flex';
+        document.getElementById('pos-view').style.display       = 'flex';
+        document.getElementById('historial-view').style.display = 'none';
+        document.getElementById('admin-view').style.display     = 'none';
+
+        // Mostrar botón historial, ocultar config
+        document.getElementById('btn-historial').style.display  = 'inline-block';
 
         // El botón de configurar menú siempre está oculto en el POS
         // La configuración solo se accede desde la pantalla de inicio
@@ -133,10 +141,14 @@ const app = {
     /** Muestra header + Admin, oculta el resto */
     _abrirAdmin() {
         state.currentView = 'admin';
-        document.getElementById('home-view').style.display   = 'none';
-        document.getElementById('app-header').style.display  = 'flex';
-        document.getElementById('pos-view').style.display    = 'none';
-        document.getElementById('admin-view').style.display  = 'flex';
+        document.getElementById('home-view').style.display      = 'none';
+        document.getElementById('app-header').style.display     = 'flex';
+        document.getElementById('pos-view').style.display       = 'none';
+        document.getElementById('historial-view').style.display = 'none';
+        document.getElementById('admin-view').style.display     = 'flex';
+
+        // Ocultar botón historial en Admin
+        document.getElementById('btn-historial').style.display  = 'none';
 
         // En admin el botón sirve para volver al POS (solo aplica si venimos desde POS de Desayuno)
         const btnToggle = document.getElementById('btn-toggle');
@@ -619,7 +631,115 @@ const admin = {
 };
 
 // ─────────────────────────────────────────────
-// 11. UI — UTILIDADES DE INTERFAZ
+// 11. HISTORIAL DE PEDIDOS
+// ─────────────────────────────────────────────
+const historial = {
+    _visible: false,
+
+    /** Alterna entre mostrar Historial y volver al POS */
+    toggle() {
+        historial._visible = !historial._visible;
+        const btnH = document.getElementById('btn-historial');
+
+        if (historial._visible) {
+            document.getElementById('pos-view').style.display       = 'none';
+            document.getElementById('historial-view').style.display = 'flex';
+            btnH.classList.add('active');
+            historial.cargar();
+        } else {
+            document.getElementById('historial-view').style.display = 'none';
+            document.getElementById('pos-view').style.display       = 'flex';
+            btnH.classList.remove('active');
+        }
+    },
+
+    /** Pide los últimos 5 pedidos al backend y los renderiza */
+    async cargar() {
+        const container = document.getElementById('historial-container');
+        container.innerHTML = '<div class="historial-empty">Cargando...</div>';
+        try {
+            const respuesta = await api.hacerPeticion({
+                action:        'obtener_historial',
+                tipo_servicio: state.tipoServicio,
+            });
+            if (respuesta.status === 'success') {
+                state.historialPedidos = respuesta.pedidos || [];
+                historial.renderizar();
+            } else {
+                container.innerHTML = '<div class="historial-empty">Error al cargar el historial.</div>';
+            }
+        } catch {
+            container.innerHTML = '<div class="historial-empty">Sin conexión. No se pudo cargar el historial.</div>';
+        }
+    },
+
+    /** Renderiza las tarjetas de historial */
+    renderizar() {
+        const container = document.getElementById('historial-container');
+        container.innerHTML = '';
+
+        if (state.historialPedidos.length === 0) {
+            container.innerHTML = '<div class="historial-empty">No hay pedidos registrados aún.</div>';
+            return;
+        }
+
+        state.historialPedidos.forEach(pedido => {
+            const card = document.createElement('div');
+            card.className = 'historial-card';
+
+            // Hora formateada
+            const fecha = new Date(pedido.fecha);
+            const hora  = isNaN(fecha) ? pedido.fecha : fecha.toLocaleTimeString('es-CO', {
+                hour: '2-digit', minute: '2-digit'
+            });
+
+            // Badge de tipo con clase CSS segura
+            const tipoSlug = pedido.tipo.toLowerCase().replace(/ /g, '-');
+            const tipoBadge = `<span class="historial-tipo historial-tipo-${tipoSlug}">${pedido.tipo}</span>`;
+
+            // Lista de ítems (sin precio para bebidas, con precio para platos)
+            const itemsHTML = pedido.items.map(it => {
+                const precioStr = it.precio > 0
+                    ? `<span class="historial-item-precio">$${it.precio.toLocaleString('es-CO')}</span>`
+                    : '';
+                return `<div class="historial-item">
+                    <span class="historial-item-qty">${it.qty}×</span>
+                    <span class="historial-item-nombre">${it.nombre}</span>
+                    ${precioStr}
+                </div>`;
+            }).join('');
+
+            // Total (solo si > 0, es decir si hay platos)
+            const totalStr = pedido.total > 0
+                ? `<div class="historial-total">Total: $${pedido.total.toLocaleString('es-CO')}</div>`
+                : '';
+
+            card.innerHTML = `
+                <div class="historial-card-header">
+                    <div class="historial-id-hora">
+                        <span class="historial-id">${pedido.idPedido}</span>
+                        <span class="historial-hora">${hora}</span>
+                    </div>
+                    ${tipoBadge}
+                </div>
+                <div class="historial-items">${itemsHTML}</div>
+                ${totalStr}`;
+
+            container.appendChild(card);
+        });
+    },
+
+    /** Resetea el estado visible al volver al POS desde otra pantalla */
+    reset() {
+        historial._visible = false;
+        document.getElementById('btn-historial').classList.remove('active');
+        document.getElementById('historial-view').style.display = 'none';
+        document.getElementById('pos-view').style.display       = 'flex';
+    },
+};
+
+// ─────────────────────────────────────────────
+// 12. UI — UTILIDADES DE INTERFAZ
 // ─────────────────────────────────────────────
 const ui = {
     toggleView() {
@@ -627,6 +747,7 @@ const ui = {
             state.origenAdmin = 'pos';
             admin.renderizar(); // también llama a app._abrirAdmin()
         } else {
+            historial.reset();
             app._abrirPOS();
         }
     },

@@ -493,3 +493,174 @@ body {
     flex-direction: column; justify-content: center; align-items: center;
     font-size: 1.4rem; color: var(--ocean-deep); font-weight: bold;
 }
+
+/* ══════════════════════════════════════════════
+   HEADER — lado derecho con botón historial
+══════════════════════════════════════════════ */
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.btn-historial-toggle {
+    background: transparent;
+    border: 2px solid #b0c8d4;
+    color: #6b8fa3;
+    padding: 8px 13px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+.btn-historial-toggle:hover {
+    border-color: var(--ocean-deep);
+    color: var(--ocean-deep);
+}
+.btn-historial-toggle.active {
+    background: var(--ocean-deep);
+    border-color: var(--ocean-deep);
+    color: white;
+}
+
+/* ══════════════════════════════════════════════
+   VISTA HISTORIAL
+══════════════════════════════════════════════ */
+#historial-view {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+    gap: 12px;
+}
+
+#historial-container {
+    flex-grow: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-right: 4px;
+}
+
+.historial-empty {
+    text-align: center;
+    padding: 40px 20px;
+    color: #6b8fa3;
+    font-size: 1.1rem;
+}
+
+/* ── Tarjeta de pedido ── */
+.historial-card {
+    background: var(--pure-white);
+    border-radius: 18px;
+    padding: 16px 18px;
+    border: 1px solid #eef6f8;
+    box-shadow: 0 4px 12px rgba(0, 91, 150, 0.07);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.historial-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.historial-id-hora {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.historial-id {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #6b8fa3;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+}
+
+.historial-hora {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--ocean-deep);
+}
+
+/* Badges de tipo */
+.historial-tipo {
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 700;
+}
+.historial-tipo-salón       { background: #e3f0fb; color: var(--ocean-deep); }
+.historial-tipo-domicilio   { background: #fef3e0; color: #c0720b; }
+.historial-tipo-para-llevar { background: #e8f8f0; color: #1a7a47; }
+
+/* ── Lista de ítems ── */
+.historial-items {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-top: 1px solid #eef6f8;
+    padding-top: 8px;
+}
+
+.historial-item {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 1rem;
+}
+
+.historial-item-qty {
+    font-weight: 700;
+    color: var(--aqua-accent);
+    min-width: 28px;
+}
+
+.historial-item-nombre {
+    flex-grow: 1;
+    color: var(--text-dark);
+}
+
+.historial-item-precio {
+    color: #6b8fa3;
+    font-size: 0.9rem;
+}
+
+/* ── Domicilio y total ── */
+.historial-domicilio {
+    font-size: 0.95rem;
+    color: #c0720b;
+    background: #fef3e0;
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+
+.historial-total {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--ocean-deep);
+    text-align: right;
+    border-top: 1px solid #eef6f8;
+    padding-top: 8px;
+}
+
+/* ── Botón secundario (Actualizar) ── */
+.btn-action-secondary {
+    background: var(--pure-white);
+    color: var(--ocean-deep);
+    border: 2px solid var(--ocean-deep);
+    box-shadow: none;
+    font-size: 1.1rem;
+    padding: 16px;
+}
+.btn-action-secondary:active {
+    background: var(--ocean-deep);
+    color: white;
+}
