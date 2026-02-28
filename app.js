@@ -410,13 +410,15 @@ const pos = {
     // ── Salón / Domicilio ─────────────────────
     selectTipo(tipo) {
         state.tipoActual = tipo;
-        document.getElementById('btn-salon').classList.toggle('active', tipo === 'Salón');
-        document.getElementById('btn-domicilio').classList.toggle('active', tipo === 'Domicilio');
+        document.getElementById('btn-salon').classList.toggle('active',      tipo === 'Salón');
+        document.getElementById('btn-domicilio').classList.toggle('active',  tipo === 'Domicilio');
+        document.getElementById('btn-para-llevar').classList.toggle('active',tipo === 'Para Llevar');
 
+        // Panel de domicilio solo visible cuando el tipo es Domicilio
         const panel = document.getElementById('domicilio-fields');
         if (panel) panel.style.display = tipo === 'Domicilio' ? 'flex' : 'none';
 
-        if (tipo === 'Salón') {
+        if (tipo !== 'Domicilio') {
             state.domicilioPara  = '';
             state.domicilioQuien = '';
             const inputPara  = document.getElementById('domicilio-para');

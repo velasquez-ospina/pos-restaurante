@@ -53,6 +53,7 @@
         <div class="tipo-container">
             <button class="btn-tipo active" id="btn-salon">Salón</button>
             <button class="btn-tipo"        id="btn-domicilio">Domicilio</button>
+            <button class="btn-tipo"        id="btn-para-llevar">Para Llevar</button>
         </div>
 
         <!-- Panel domicilio -->
@@ -130,8 +131,9 @@
         document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
 
         // ── POS ──
-        document.getElementById('btn-salon').addEventListener('click',     () => pos.selectTipo('Salón'));
-        document.getElementById('btn-domicilio').addEventListener('click', () => pos.selectTipo('Domicilio'));
+        document.getElementById('btn-salon').addEventListener('click',      () => pos.selectTipo('Salón'));
+        document.getElementById('btn-domicilio').addEventListener('click',  () => pos.selectTipo('Domicilio'));
+        document.getElementById('btn-para-llevar').addEventListener('click',() => pos.selectTipo('Para Llevar'));
         document.getElementById('btn-submit').addEventListener('click',    () => pos.registrarPedido());
 
         // ── Admin tabs ──
