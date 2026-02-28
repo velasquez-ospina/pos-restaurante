@@ -4,453 +4,84 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS Restaurante</title>
-    <style>
-        :root {
-            --ocean-deep: #005b96;
-            --ocean-light: #0277bd;
-            --aqua-accent: #00a8cc;
-            --sand-white: #f4f8f9;
-            --pure-white: #ffffff;
-            --text-dark: #2c3e50;
-            --success-seafoam: #20c997;
-        }
-
-        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
-        
-        body { 
-            background-color: var(--sand-white);
-            background-image: linear-gradient(to bottom, #eef6f8 0%, var(--sand-white) 100%);
-            color: var(--text-dark);
-            padding: 20px; 
-            display: flex; 
-            flex-direction: column; 
-            height: 100vh; 
-            touch-action: manipulation;
-        }
-        
-        .header-container {
-            display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;
-        }
-
-        .header-title { 
-            font-size: 1.8rem; color: var(--ocean-deep); font-weight: 700; letter-spacing: 0.5px;
-        }
-
-        .btn-admin-toggle {
-            background: transparent; border: 2px solid var(--ocean-deep); color: var(--ocean-deep);
-            padding: 8px 15px; border-radius: 10px; font-weight: bold; cursor: pointer;
-        }
-
-        .btn-admin-toggle:active { background: var(--ocean-deep); color: var(--pure-white); }
-        
-        #pos-view, #admin-view { display: flex; flex-direction: column; flex-grow: 1; overflow: hidden; }
-        #admin-view { display: none; }
-
-        .tipo-container { display: flex; gap: 15px; margin-bottom: 20px; }
-        
-        .btn-tipo { 
-            flex: 1; padding: 20px; font-size: 1.5rem; font-weight: bold; 
-            border: 2px solid #cfdfe6; border-radius: 18px; 
-            background: var(--pure-white); color: var(--ocean-deep); 
-            cursor: pointer; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(0, 91, 150, 0.05);
-        }
-        
-        .btn-tipo.active { 
-            background: linear-gradient(135deg, var(--ocean-deep), var(--ocean-light));
-            border-color: transparent; color: white; 
-            box-shadow: 0 8px 15px rgba(0, 91, 150, 0.2); transform: translateY(-2px);
-        }
-        
-        .menus-grid { 
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); 
-            gap: 15px; flex-grow: 1; overflow-y: auto; padding-bottom: 20px; padding-left: 5px; padding-right: 5px;
-            align-content: start;
-        }
-        
-        .menu-card { 
-            background: var(--pure-white); padding: 20px 15px; border-radius: 18px; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px;
-            border: 1px solid #eef6f8; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08); text-align: center;
-        }
-        
-        .menu-info { display: flex; flex-direction: column; align-items: center; width: 100%; }
-        .menu-name { font-size: 1.5rem; font-weight: 600; color: var(--text-dark); line-height: 1.2; }
-        .menu-price { font-size: 1.2rem; color: var(--ocean-light); font-weight: bold; margin-top: 5px; }
-        
-        .controls { display: flex; align-items: center; justify-content: center; gap: 20px; width: 100%; margin-top: 5px; }
-        
-        .btn-qty { 
-            width: 55px; height: 55px; border-radius: 50%; border: 2px solid var(--aqua-accent);
-            background: var(--pure-white); font-size: 2rem; font-weight: bold; 
-            color: var(--aqua-accent); cursor: pointer; display: flex; align-items: center; 
-            justify-content: center; user-select: none;
-        }
-        
-        .btn-qty:active { background: var(--aqua-accent); color: white; }
-        .qty-display { font-size: 2rem; font-weight: bold; min-width: 40px; text-align: center; color: var(--ocean-deep); }
-        
-        /* Estilos del Total del Pedido */
-        .total-container {
-            background: var(--pure-white); border: 2px solid var(--ocean-light); border-radius: 18px;
-            padding: 15px 25px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center;
-            box-shadow: 0 4px 10px rgba(0, 91, 150, 0.1);
-        }
-
-        .total-label { font-size: 1.5rem; font-weight: bold; color: var(--text-dark); }
-        .total-value { font-size: 2rem; font-weight: bold; color: var(--ocean-deep); }
-
-        .admin-header { font-size: 1.2rem; margin-bottom: 15px; color: var(--text-dark); }
-        .admin-list { background: var(--pure-white); border-radius: 18px; padding: 15px; flex-grow: 1; overflow-y: auto; margin-bottom: 20px; box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08); }
-        .admin-item { display: flex; align-items: center; padding: 15px 0; border-bottom: 1px solid #eef6f8; font-size: 1.3rem; }
-        .admin-item:last-child { border-bottom: none; }
-        .admin-checkbox { width: 25px; height: 25px; margin-right: 15px; accent-color: var(--ocean-deep); }
-        
-        .btn-action { 
-            width: 100%; padding: 25px; font-size: 1.5rem; font-weight: bold;
-            background: linear-gradient(to right, var(--ocean-deep), var(--aqua-accent)); 
-            color: white; border: none; border-radius: 18px; cursor: pointer; 
-            box-shadow: 0 6px 20px rgba(0, 91, 150, 0.3);
-        }
-        
-        .btn-action:active { transform: scale(0.98); }
-        .btn-action:disabled { background: #bdc3c7; background-image: none; cursor: not-allowed; box-shadow: none; }
-        
-        .toast { 
-            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-            background: rgba(44, 62, 80, 0.9); color: var(--pure-white);
-            padding: 30px 50px; border-radius: 20px; font-size: 1.5rem; font-weight: bold; 
-            display: none; z-index: 1000; text-align: center;
-        }
-        
-        #loading-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255, 255, 255, 0.9); z-index: 2000;
-            display: flex; flex-direction: column; justify-content: center; align-items: center;
-            font-size: 1.5rem; color: var(--ocean-deep); font-weight: bold; display: none;
-        }
-    </style>
+    <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
+    <!-- Overlay de carga -->
     <div id="loading-overlay">Sincronizando con la base de datos...</div>
 
+    <!-- Encabezado -->
     <div class="header-container">
-        <h1 class="header-title" onclick="resetearClave()">Registro de Pedidos</h1>
-        <button class="btn-admin-toggle" id="btn-toggle" onclick="toggleView()">Configurar Menu</button>
+        <h1 class="header-title" id="header-title">Registro de Pedidos</h1>
+        <button class="btn-admin-toggle" id="btn-toggle">Configurar Menú</button>
     </div>
 
+    <!-- ── Vista POS ── -->
     <div id="pos-view">
+
         <div class="tipo-container">
-            <button class="btn-tipo active" id="btn-salon" onclick="selectTipo('Salón')">Salón</button>
-            <button class="btn-tipo" id="btn-domicilio" onclick="selectTipo('Domicilio')">Domicilio</button>
+            <button class="btn-tipo active" id="btn-salon">Salón</button>
+            <button class="btn-tipo"        id="btn-domicilio">Domicilio</button>
         </div>
 
-        <div class="menus-grid" id="menus-container">
+        <!-- Panel de datos para domicilio (visible solo cuando Tipo = Domicilio) -->
+        <div id="domicilio-fields" style="display:none;">
+            <div class="domicilio-field">
+                <label class="domicilio-label" for="domicilio-para">¿Para Dónde?</label>
+                <div class="autocomplete-wrapper">
+                    <input
+                        type="text"
+                        id="domicilio-para"
+                        class="domicilio-input"
+                        placeholder="Escribe el local de destino..."
+                        autocomplete="off"
+                    >
+                    <div id="domicilio-sugerencias" class="autocomplete-list"></div>
+                </div>
             </div>
+            <div class="domicilio-field">
+                <label class="domicilio-label" for="domicilio-quien">¿Para Quién?</label>
+                <input
+                    type="text"
+                    id="domicilio-quien"
+                    class="domicilio-input"
+                    placeholder="Nombre de quien recibe..."
+                    autocomplete="off"
+                >
+            </div>
+        </div>
+
+        <div class="menus-grid" id="menus-container"></div>
 
         <div class="total-container">
             <span class="total-label">Total Pedido:</span>
             <span class="total-value" id="order-total">$0</span>
         </div>
 
-        <button class="btn-action" id="btn-submit" onclick="registrarPedido()">REGISTRAR PEDIDO</button>
+        <button class="btn-action" id="btn-submit">REGISTRAR PEDIDO</button>
+
     </div>
 
+    <!-- ── Vista Admin ── -->
     <div id="admin-view">
-        <div class="admin-header">Selecciona los platillos disponibles para el dia de hoy:</div>
-        <div class="admin-list" id="admin-list-container">
-            </div>
-        <button class="btn-action" id="btn-save-menu" onclick="guardarMenuDia()">GUARDAR MENU DEL DIA</button>
+        <div class="admin-header">Selecciona los platillos disponibles para el día de hoy:</div>
+        <div class="admin-list" id="admin-list-container"></div>
+        <button class="btn-action" id="btn-save-menu">GUARDAR MENÚ DEL DÍA</button>
     </div>
 
-    <div class="toast" id="toast">Operacion exitosa</div>
+    <!-- Toast de notificación -->
+    <div class="toast" id="toast">Operación exitosa</div>
 
+    <script src="app.js"></script>
     <script>
-        // --- CONFIGURACION ---
-        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyGaUIsw6OF5tfuwoNuqkZvIa-OKN2iTybZfQjBQHLvmREgspGNYcfJtMYnjVb0zPJ/exec'; 
-        
-        // --- ESTADO DE LA APLICACION ---
-        let posToken = localStorage.getItem('pos_token_seguridad');
-        let tipoActual = 'Salón';
-        let catalogoMaestro = []; 
-        let menuDelDiaNombres = []; 
-        let cantidadesPedido = {}; 
-        let currentView = 'pos'; 
-        let colaPedidos = JSON.parse(localStorage.getItem('pos_cola_pedidos')) || [];
-        let sincronizando = false;
-
-        window.onload = () => { 
-            verificarSeguridad();
-            if (posToken) {
-                obtenerDatosBackend();
-            }
-        };
-
-        function verificarSeguridad() {
-            if (!posToken) {
-                posToken = prompt("Seguridad: Ingresa la clave de autorizacion para este dispositivo:");
-                if (posToken) {
-                    localStorage.setItem('pos_token_seguridad', posToken);
-                } else {
-                    alert("No podras operar el sistema sin la clave de seguridad. Recarga la pagina.");
-                }
-            }
-        }
-
-        let clickCount = 0;
-        let clickTimer = null;
-        function resetearClave() {
-            clickCount++;
-            if (clickCount === 1) {
-                clickTimer = setTimeout(() => { clickCount = 0; }, 3000);
-            }
-            if (clickCount >= 5) {
-                clearTimeout(clickTimer);
-                localStorage.removeItem('pos_token_seguridad');
-                posToken = null;
-                clickCount = 0;
-                alert("Clave de seguridad eliminada del dispositivo.");
-                verificarSeguridad();
-            }
-        }
-
-        async function hacerPeticion(payload) {
-            payload.token = posToken;
-            try {
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain' },
-                    body: JSON.stringify(payload)
-                });
-                return await response.json();
-            } catch (error) {
-                console.error(error);
-                throw new Error("Fallo de conexion. Revisa el internet de la tablet.");
-            }
-        }
-
-        async function obtenerDatosBackend() {
-            mostrarCarga(true, "Obteniendo datos del dia...");
-            try {
-                const respuesta = await hacerPeticion({ action: "obtener_datos" });
-                if (respuesta.status === "success") {
-                    catalogoMaestro = respuesta.catalogo;
-                    menuDelDiaNombres = respuesta.menuDia;
-                    renderizarPOS();
-                    renderizarAdmin();
-                } else {
-                    alert("Error del servidor: " + respuesta.message);
-                }
-            } catch (error) {
-                alert(error.message);
-            } finally {
-                mostrarCarga(false);
-            }
-        }
-
-        function toggleView() {
-            if (currentView === 'pos') {
-                document.getElementById('pos-view').style.display = 'none';
-                document.getElementById('admin-view').style.display = 'flex';
-                document.getElementById('btn-toggle').innerText = 'Volver a Ventas';
-                currentView = 'admin';
-            } else {
-                document.getElementById('admin-view').style.display = 'none';
-                document.getElementById('pos-view').style.display = 'flex';
-                document.getElementById('btn-toggle').innerText = 'Configurar Menu';
-                currentView = 'pos';
-            }
-        }
-
-        function selectTipo(tipo) {
-            tipoActual = tipo;
-            document.getElementById('btn-salon').classList.toggle('active', tipo === 'Salón');
-            document.getElementById('btn-domicilio').classList.toggle('active', tipo === 'Domicilio');
-        }
-
-        function mostrarToast(mensaje) {
-            const toast = document.getElementById('toast');
-            toast.innerText = mensaje;
-            toast.style.display = 'block';
-            setTimeout(() => { toast.style.display = 'none'; }, 2000);
-        }
-
-        function mostrarCarga(mostrar, texto = "Procesando...") {
-            const overlay = document.getElementById('loading-overlay');
-            overlay.innerText = texto;
-            overlay.style.display = mostrar ? 'flex' : 'none';
-        }
-
-        function calcularTotal() {
-            let total = 0;
-            for (const plato in cantidadesPedido) {
-                if (cantidadesPedido[plato] > 0) {
-                    const infoPlato = catalogoMaestro.find(p => p.nombre === plato);
-                    const precioActual = infoPlato ? infoPlato.precio : 0;
-                    total += (cantidadesPedido[plato] * precioActual);
-                }
-            }
-            document.getElementById('order-total').innerText = '$' + total.toLocaleString('es-CO');
-        }
-
-        function renderizarPOS() {
-            const container = document.getElementById('menus-container');
-            container.innerHTML = '';
-            cantidadesPedido = {}; 
-
-            const platosDeHoy = catalogoMaestro.filter(plato => menuDelDiaNombres.includes(plato.nombre));
-
-            if (platosDeHoy.length === 0) {
-                container.innerHTML = '<div style="grid-column: 1/-1; text-align: center; margin-top: 50px; font-size: 1.2rem;">No hay menus configurados para hoy. Usa el boton superior derecho para seleccionarlos.</div>';
-                calcularTotal();
-                return;
-            }
-
-            platosDeHoy.forEach((plato, index) => {
-                const precioFormateado = plato.precio.toLocaleString('es-CO');
-                cantidadesPedido[plato.nombre] = 0;
-                const elementId = "qty-" + index;
-
-                container.innerHTML += `
-                    <div class="menu-card">
-                        <div class="menu-info">
-                            <div class="menu-name">${plato.nombre}</div>
-                            <div class="menu-price">$${precioFormateado}</div>
-                        </div>
-                        <div class="controls">
-                            <button class="btn-qty" onclick="actualizarCantidad('${plato.nombre}', -1, '${elementId}')">-</button>
-                            <div class="qty-display" id="${elementId}">0</div>
-                            <button class="btn-qty" onclick="actualizarCantidad('${plato.nombre}', 1, '${elementId}')">+</button>
-                        </div>
-                    </div>
-                `;
-            });
-            calcularTotal();
-        }
-
-        function actualizarCantidad(nombrePlato, cambio, elementId) {
-            let nuevaCantidad = (cantidadesPedido[nombrePlato] || 0) + cambio;
-            if (nuevaCantidad < 0) nuevaCantidad = 0;
-            cantidadesPedido[nombrePlato] = nuevaCantidad;
-            document.getElementById(elementId).innerText = nuevaCantidad;
-            calcularTotal();
-        }
-
-        // --- MOTOR DE COLA LOCAL (OFFLINE) ---
-        function guardarEnCola(payload) {
-            const pedidoLocal = {
-                idLocal: Date.now().toString(),
-                payload: payload
-            };
-            colaPedidos.push(pedidoLocal);
-            localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
-            procesarCola();
-        }
-
-        async function procesarCola() {
-            if (!navigator.onLine || colaPedidos.length === 0 || sincronizando) return;
-            
-            sincronizando = true;
-            const pedidosPendientes = [...colaPedidos];
-
-            for (let i = 0; i < pedidosPendientes.length; i++) {
-                const pedido = pedidosPendientes[i];
-                try {
-                    const respuesta = await hacerPeticion(pedido.payload);
-                    if (respuesta.status === "success") {
-                        colaPedidos = colaPedidos.filter(p => p.idLocal !== pedido.idLocal);
-                        localStorage.setItem('pos_cola_pedidos', JSON.stringify(colaPedidos));
-                        console.log("Pedido sincronizado exitosamente.");
-                    } else {
-                        console.error("Error del servidor:", respuesta.message);
-                        break; 
-                    }
-                } catch (error) {
-                    console.warn("Conexion inestable. Sincronizacion pausada.");
-                    break; 
-                }
-            }
-            sincronizando = false;
-        }
-
-        window.addEventListener('online', procesarCola);
-        setInterval(procesarCola, 10000);
-
-        function registrarPedido() {
-            const carritoFinal = [];
-            
-            for (const plato in cantidadesPedido) {
-                if (cantidadesPedido[plato] > 0) {
-                    const infoPlato = catalogoMaestro.find(p => p.nombre === plato);
-                    const precioActual = infoPlato ? infoPlato.precio : 0;
-                    
-                    carritoFinal.push({ 
-                        item: plato, 
-                        qty: cantidadesPedido[plato],
-                        precio: precioActual
-                    });
-                }
-            }
-
-            if (carritoFinal.length === 0) {
-                alert("Debes agregar al menos un platillo para registrar el pedido.");
-                return;
-            }
-
-            const payload = {
-                action: "registrar_pedido",
-                tipo: tipoActual,
-                carrito: carritoFinal
-            };
-
-            mostrarToast("Pedido registrado");
-            renderizarPOS(); 
-            selectTipo('Salón');
-
-            guardarEnCola(payload);
-        }
-
-        function renderizarAdmin() {
-            const container = document.getElementById('admin-list-container');
-            container.innerHTML = '';
-
-            catalogoMaestro.forEach((plato, index) => {
-                const estaSeleccionado = menuDelDiaNombres.includes(plato.nombre) ? 'checked' : '';
-                container.innerHTML += `
-                    <div class="admin-item">
-                        <input type="checkbox" class="admin-checkbox" id="chk-${index}" value="${plato.nombre}" ${estaSeleccionado}>
-                        <label for="chk-${index}">${plato.nombre}</label>
-                    </div>
-                `;
-            });
-        }
-
-        async function guardarMenuDia() {
-            const checkboxes = document.querySelectorAll('.admin-checkbox:checked');
-            const seleccionados = Array.from(checkboxes).map(cb => cb.value);
-
-            mostrarCarga(true, "Guardando menu del dia...");
-
-            try {
-                const respuesta = await hacerPeticion({
-                    action: "guardar_menu_dia",
-                    menus: seleccionados
-                });
-
-                if (respuesta.status === "success") {
-                    menuDelDiaNombres = seleccionados; 
-                    mostrarToast("Menu actualizado");
-                    renderizarPOS(); 
-                    toggleView(); 
-                } else {
-                    alert("Error al guardar: " + respuesta.message);
-                }
-            } catch (error) {
-                alert(error.message);
-            } finally {
-                mostrarCarga(false);
-            }
-        }
+        // Enlace entre los elementos del DOM y los módulos de app.js
+        document.getElementById('header-title').addEventListener('click', () => auth.resetearClave());
+        document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
+        document.getElementById('btn-salon').addEventListener('click', () => pos.selectTipo('Salón'));
+        document.getElementById('btn-domicilio').addEventListener('click', () => pos.selectTipo('Domicilio'));
+        document.getElementById('btn-submit').addEventListener('click', () => pos.registrarPedido());
+        document.getElementById('btn-save-menu').addEventListener('click', () => admin.guardarMenuDia());
     </script>
 </body>
 </html>
