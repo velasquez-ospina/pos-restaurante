@@ -119,15 +119,9 @@ const app = {
         document.getElementById('pos-view').style.display    = 'flex';
         document.getElementById('admin-view').style.display  = 'none';
 
-        // El botón de configurar menú solo es visible en Desayuno (flujo normal)
-        // Para Almuerzo se oculta — solo se accede desde la pantalla de inicio
-        const btnToggle = document.getElementById('btn-toggle');
-        if (state.tipoServicio === 'Desayuno') {
-            btnToggle.style.display = 'block';
-            btnToggle.innerText = 'Configurar Menú';
-        } else {
-            btnToggle.style.display = 'none';
-        }
+        // El botón de configurar menú siempre está oculto en el POS
+        // La configuración solo se accede desde la pantalla de inicio
+        document.getElementById('btn-toggle').style.display = 'none';
 
         // Badge de servicio en el título
         const badge = state.tipoServicio === 'Desayuno'
