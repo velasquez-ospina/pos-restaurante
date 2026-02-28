@@ -18,7 +18,7 @@
 // 1. CONFIGURACIÓN
 // ─────────────────────────────────────────────
 const CONFIG = {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyyGaUIsw6OF5tfuwoNuqkZvIa-OKN2iTybZfQjBQHLvmREgspGNYcfJtMYnjVb0zPJ/exec',
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbx5wVye7IQULbuVXtywWH4ThZ3qBOWFOMZ4Chz2w5YCXLhbyI_hfzzGwgRc3DngYCIt/exec',
     TOAST_DURATION_MS: 2000,
     SYNC_INTERVAL_MS: 10_000,
     SECURITY_CLICK_THRESHOLD: 5,
