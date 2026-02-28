@@ -9,79 +9,135 @@
 <body>
 
     <!-- Overlay de carga -->
-    <div id="loading-overlay">Sincronizando con la base de datos...</div>
+    <div id="loading-overlay">Cargando...</div>
 
-    <!-- Encabezado -->
-    <div class="header-container">
-        <h1 class="header-title" id="header-title">Registro de Pedidos</h1>
+    <!-- ══════════════════════════════════════
+         PANTALLA PRINCIPAL — Elegir servicio
+    ══════════════════════════════════════ -->
+    <div id="home-view">
+        <div class="home-title">Registro de Pedidos</div>
+        <div class="home-subtitle">¿Qué servicio vas a registrar?</div>
+        <div class="home-buttons">
+            <button class="btn-home" id="btn-home-desayuno">
+                <span class="btn-home-icon">🌅</span>
+                <span class="btn-home-label">Desayuno</span>
+            </button>
+            <button class="btn-home" id="btn-home-almuerzo">
+                <span class="btn-home-icon">🍽️</span>
+                <span class="btn-home-label">Almuerzo</span>
+            </button>
+        </div>
+        <div class="home-config-links">
+            <button class="btn-config-link" id="btn-config-desayuno">⚙️ Configurar Desayuno</button>
+            <button class="btn-config-link" id="btn-config-almuerzo">⚙️ Configurar Almuerzo</button>
+        </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         ENCABEZADO — visible en POS y Admin
+    ══════════════════════════════════════ -->
+    <div class="header-container" id="app-header" style="display:none;">
+        <div class="header-left">
+            <button class="btn-back" id="btn-back">← Inicio</button>
+            <h1 class="header-title" id="header-title">Pedidos</h1>
+        </div>
         <button class="btn-admin-toggle" id="btn-toggle">Configurar Menú</button>
     </div>
 
-    <!-- ── Vista POS ── -->
-    <div id="pos-view">
+    <!-- ══════════════════════════════════════
+         VISTA POS
+    ══════════════════════════════════════ -->
+    <div id="pos-view" style="display:none;">
 
+        <!-- Salón / Domicilio -->
         <div class="tipo-container">
             <button class="btn-tipo active" id="btn-salon">Salón</button>
             <button class="btn-tipo"        id="btn-domicilio">Domicilio</button>
         </div>
 
-        <!-- Panel de datos para domicilio (visible solo cuando Tipo = Domicilio) -->
+        <!-- Panel domicilio -->
         <div id="domicilio-fields" style="display:none;">
             <div class="domicilio-field">
                 <label class="domicilio-label" for="domicilio-para">¿Para Dónde?</label>
                 <div class="autocomplete-wrapper">
-                    <input
-                        type="text"
-                        id="domicilio-para"
-                        class="domicilio-input"
-                        placeholder="Escribe el local de destino..."
-                        autocomplete="off"
-                    >
+                    <input type="text" id="domicilio-para" class="domicilio-input"
+                           placeholder="Escribe el local de destino..." autocomplete="off">
                     <div id="domicilio-sugerencias" class="autocomplete-list"></div>
                 </div>
             </div>
             <div class="domicilio-field">
                 <label class="domicilio-label" for="domicilio-quien">¿Para Quién?</label>
-                <input
-                    type="text"
-                    id="domicilio-quien"
-                    class="domicilio-input"
-                    placeholder="Nombre de quien recibe..."
-                    autocomplete="off"
-                >
+                <input type="text" id="domicilio-quien" class="domicilio-input"
+                       placeholder="Nombre de quien recibe..." autocomplete="off">
             </div>
         </div>
 
+        <!-- Sección platos -->
+        <div class="section-label" id="label-platos">🍽️ Platos</div>
         <div class="menus-grid" id="menus-container"></div>
 
+        <!-- Sección bebidas -->
+        <div class="section-label" id="label-bebidas">🥤 Bebidas</div>
+        <div class="menus-grid" id="bebidas-container"></div>
+
+        <!-- Total -->
         <div class="total-container">
             <span class="total-label">Total Pedido:</span>
             <span class="total-value" id="order-total">$0</span>
         </div>
 
         <button class="btn-action" id="btn-submit">REGISTRAR PEDIDO</button>
-
     </div>
 
-    <!-- ── Vista Admin ── -->
-    <div id="admin-view">
-        <div class="admin-header">Selecciona los platillos disponibles para el día de hoy:</div>
-        <div class="admin-list" id="admin-list-container"></div>
+    <!-- ══════════════════════════════════════
+         VISTA ADMIN
+    ══════════════════════════════════════ -->
+    <div id="admin-view" style="display:none;">
+
+        <!-- Pestañas Platos / Bebidas -->
+        <div class="admin-tabs">
+            <button class="btn-admin-tab active" id="tab-platos">🍽️ Platos</button>
+            <button class="btn-admin-tab"        id="tab-bebidas">🥤 Bebidas</button>
+        </div>
+
+        <div class="admin-tab-content" id="admin-platos-content">
+            <div class="admin-header">Selecciona los platos disponibles para hoy:</div>
+            <div class="admin-list" id="admin-list-container"></div>
+        </div>
+
+        <div class="admin-tab-content" id="admin-bebidas-content" style="display:none;">
+            <div class="admin-header">Selecciona las bebidas disponibles para hoy:</div>
+            <div class="admin-list" id="admin-bebidas-container"></div>
+        </div>
+
         <button class="btn-action" id="btn-save-menu">GUARDAR MENÚ DEL DÍA</button>
     </div>
 
-    <!-- Toast de notificación -->
+    <!-- Toast -->
     <div class="toast" id="toast">Operación exitosa</div>
 
     <script src="app.js"></script>
     <script>
-        // Enlace entre los elementos del DOM y los módulos de app.js
-        document.getElementById('header-title').addEventListener('click', () => auth.resetearClave());
+        // ── Home ──
+        document.getElementById('btn-home-desayuno').addEventListener('click',  () => app.iniciarServicio('Desayuno'));
+        document.getElementById('btn-home-almuerzo').addEventListener('click',  () => app.iniciarServicio('Almuerzo'));
+        document.getElementById('btn-config-desayuno').addEventListener('click',() => app.irAAdmin('Desayuno'));
+        document.getElementById('btn-config-almuerzo').addEventListener('click',() => app.irAAdmin('Almuerzo'));
+
+        // ── Header ──
+        document.getElementById('btn-back').addEventListener('click',   () => app.volverAInicio());
+        document.getElementById('header-title').addEventListener('click',() => auth.resetearClave());
         document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
-        document.getElementById('btn-salon').addEventListener('click', () => pos.selectTipo('Salón'));
+
+        // ── POS ──
+        document.getElementById('btn-salon').addEventListener('click',     () => pos.selectTipo('Salón'));
         document.getElementById('btn-domicilio').addEventListener('click', () => pos.selectTipo('Domicilio'));
-        document.getElementById('btn-submit').addEventListener('click', () => pos.registrarPedido());
-        document.getElementById('btn-save-menu').addEventListener('click', () => admin.guardarMenuDia());
+        document.getElementById('btn-submit').addEventListener('click',    () => pos.registrarPedido());
+
+        // ── Admin tabs ──
+        document.getElementById('tab-platos').addEventListener('click',  () => admin.selectTab('platos'));
+        document.getElementById('tab-bebidas').addEventListener('click', () => admin.selectTab('bebidas'));
+        document.getElementById('btn-save-menu').addEventListener('click',() => admin.guardarMenuDia());
     </script>
 </body>
 </html>

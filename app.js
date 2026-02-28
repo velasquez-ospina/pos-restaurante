@@ -1,26 +1,27 @@
 /**
- * app.js — Lógica del POS de Restaurante
+ * app.js — POS Restaurante
  *
  * Estructura:
- *  1. Configuración
- *  2. Estado de la aplicación
- *  3. Inicialización
- *  4. Seguridad / Auth
- *  5. Comunicación con el backend (Google Apps Script)
- *  6. Cola offline
- *  7. Vistas — POS
- *  8. Autocomplete de locales (domicilio)
- *  9. Vistas — Admin
- * 10. Utilidades de UI
+ *  1.  Configuración
+ *  2.  Estado de la aplicación
+ *  3.  Inicialización
+ *  4.  app       — navegación entre pantallas
+ *  5.  auth      — seguridad / token
+ *  6.  api       — comunicación con Google Apps Script
+ *  7.  cola      — sincronización offline
+ *  8.  pos       — vista de pedidos (platos + bebidas)
+ *  9.  autocomplete — campo "Para Dónde"
+ * 10.  admin     — vista de configuración
+ * 11.  ui        — utilidades de interfaz
  */
 
 // ─────────────────────────────────────────────
 // 1. CONFIGURACIÓN
 // ─────────────────────────────────────────────
 const CONFIG = {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbx5wVye7IQULbuVXtywWH4ThZ3qBOWFOMZ4Chz2w5YCXLhbyI_hfzzGwgRc3DngYCIt/exec',
-    TOAST_DURATION_MS: 2000,
-    SYNC_INTERVAL_MS: 10_000,
+    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbz50sokQUW-MZb5VPTA9S1yFepxR2IAQVve5tTuKGbDCCE8yp-ssHscMWNgldRg09dR/exec',
+    TOAST_DURATION_MS:        2000,
+    SYNC_INTERVAL_MS:         10_000,
     SECURITY_CLICK_THRESHOLD: 5,
     SECURITY_CLICK_WINDOW_MS: 3000,
     LOCAL_STORAGE_KEYS: {
@@ -33,20 +34,38 @@ const CONFIG = {
 // 2. ESTADO DE LA APLICACIÓN
 // ─────────────────────────────────────────────
 const state = {
+    // Auth
     posToken:            localStorage.getItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN),
-    tipoActual:          'Salón',
-    catalogoMaestro:     [],
-    menuDelDiaNombres:   [],
-    cantidadesPedido:    {},
-    currentView:         'pos',
-    colaPedidos:         JSON.parse(localStorage.getItem(CONFIG.LOCAL_STORAGE_KEYS.COLA)) || [],
-    sincronizando:       false,
     securityClickCount:  0,
     securityClickTimer:  null,
-    // Datos de domicilio
-    listaClientes:   [],   // locales cargados desde la Sheet 'Clientes'
-    domicilioPara:   '',   // local destino  ("Para Dónde?")
-    domicilioQuien:  '',   // receptor       ("Para Quién?")
+
+    // Navegación
+    currentView:         'home',    // 'home' | 'pos' | 'admin'
+    tipoServicio:        null,      // 'Desayuno' | 'Almuerzo'  (elegido en home)
+
+    // Pedido
+    tipoActual:          'Salón',   // 'Salón' | 'Domicilio'
+    cantidadesPlatos:    {},
+    cantidadesBebidas:   {},
+
+    // Catálogos (cargados del backend)
+    catalogoPlatos:      [],        // [{nombre, precio}]  (Catalogo_Menus)
+    catalogoBebidas:     [],        // [{nombre}]  — sin precio  (Catalogo_Bebidas)
+
+    // Selección del día (filtrados por tipoServicio)
+    menuPlatosHoy:       [],        // nombres de platos activos hoy
+    menuBebidasHoy:      [],        // nombres de bebidas activas hoy
+
+    // Clientes para autocomplete
+    listaClientes:       [],
+
+    // Domicilio
+    domicilioPara:       '',
+    domicilioQuien:      '',
+
+    // Cola offline
+    colaPedidos:         JSON.parse(localStorage.getItem(CONFIG.LOCAL_STORAGE_KEYS.COLA)) || [],
+    sincronizando:       false,
 };
 
 // ─────────────────────────────────────────────
@@ -54,7 +73,6 @@ const state = {
 // ─────────────────────────────────────────────
 window.addEventListener('load', () => {
     auth.verificarSeguridad();
-    if (state.posToken) api.obtenerDatosBackend();
     domicilioAutocomplete.init();
 });
 
@@ -62,7 +80,70 @@ window.addEventListener('online', () => cola.procesar());
 setInterval(() => cola.procesar(), CONFIG.SYNC_INTERVAL_MS);
 
 // ─────────────────────────────────────────────
-// 4. SEGURIDAD / AUTH
+// 4. APP — NAVEGACIÓN ENTRE PANTALLAS
+// ─────────────────────────────────────────────
+const app = {
+    /** Usuario elige Desayuno o Almuerzo en la pantalla de inicio → va al POS */
+    async iniciarServicio(tipoServicio) {
+        state.tipoServicio = tipoServicio;
+        await api.obtenerDatosBackend();
+        // mostrarPOS se llama desde obtenerDatosBackend al terminar
+    },
+
+    /** Desde inicio va directo a Admin para configurar un tipo de servicio */
+    async irAAdmin(tipoServicio) {
+        state.tipoServicio = tipoServicio;
+        await api.obtenerDatosBackend();
+        // Después de cargar datos, abrir Admin en lugar de POS
+        app._abrirAdmin();
+    },
+
+    /** Volver a la pantalla de inicio */
+    volverAInicio() {
+        state.tipoServicio  = null;
+        state.currentView   = 'home';
+        state.tipoActual    = 'Salón';
+
+        document.getElementById('home-view').style.display   = 'flex';
+        document.getElementById('app-header').style.display  = 'none';
+        document.getElementById('pos-view').style.display    = 'none';
+        document.getElementById('admin-view').style.display  = 'none';
+    },
+
+    /** Muestra header + POS, oculta el resto */
+    _abrirPOS() {
+        state.currentView = 'pos';
+        document.getElementById('home-view').style.display   = 'none';
+        document.getElementById('app-header').style.display  = 'flex';
+        document.getElementById('pos-view').style.display    = 'flex';
+        document.getElementById('admin-view').style.display  = 'none';
+        document.getElementById('btn-toggle').innerText      = 'Configurar Menú';
+
+        // Badge de servicio en el título
+        const badge = state.tipoServicio === 'Desayuno'
+            ? `<span class="badge-servicio badge-desayuno">☀️ Desayuno</span>`
+            : `<span class="badge-servicio badge-almuerzo">🍽️ Almuerzo</span>`;
+        document.getElementById('header-title').innerHTML = `Registro de Pedidos ${badge}`;
+    },
+
+    /** Muestra header + Admin, oculta el resto */
+    _abrirAdmin() {
+        state.currentView = 'admin';
+        document.getElementById('home-view').style.display   = 'none';
+        document.getElementById('app-header').style.display  = 'flex';
+        document.getElementById('pos-view').style.display    = 'none';
+        document.getElementById('admin-view').style.display  = 'flex';
+        document.getElementById('btn-toggle').innerText      = 'Volver a Ventas';
+
+        const badge = state.tipoServicio === 'Desayuno'
+            ? `<span class="badge-servicio badge-desayuno">☀️ Desayuno</span>`
+            : `<span class="badge-servicio badge-almuerzo">🍽️ Almuerzo</span>`;
+        document.getElementById('header-title').innerHTML = `Configuración ${badge}`;
+    },
+};
+
+// ─────────────────────────────────────────────
+// 5. AUTH — SEGURIDAD / TOKEN
 // ─────────────────────────────────────────────
 const auth = {
     verificarSeguridad() {
@@ -77,7 +158,7 @@ const auth = {
         }
     },
 
-    /** Clic 5 veces en el título ≤3 s → resetea la clave */
+    /** Clic 5 veces en el título dentro de 3 s → resetea clave */
     resetearClave() {
         state.securityClickCount++;
         if (state.securityClickCount === 1) {
@@ -97,15 +178,15 @@ const auth = {
 };
 
 // ─────────────────────────────────────────────
-// 5. COMUNICACIÓN CON EL BACKEND
+// 6. API — COMUNICACIÓN CON GOOGLE APPS SCRIPT
 // ─────────────────────────────────────────────
 const api = {
     async hacerPeticion(payload) {
         payload.token = state.posToken;
         const response = await fetch(CONFIG.SCRIPT_URL, {
-            method: 'POST',
+            method:  'POST',
             headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(payload),
+            body:    JSON.stringify(payload),
         });
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         return response.json();
@@ -114,13 +195,26 @@ const api = {
     async obtenerDatosBackend() {
         ui.mostrarCarga(true, 'Obteniendo datos del día...');
         try {
-            const respuesta = await api.hacerPeticion({ action: 'obtener_datos' });
+            const respuesta = await api.hacerPeticion({
+                action:        'obtener_datos',
+                tipo_servicio: state.tipoServicio,   // <-- backend filtra por esto
+            });
+
             if (respuesta.status === 'success') {
-                state.catalogoMaestro   = respuesta.catalogo;
-                state.menuDelDiaNombres = respuesta.menuDia;
-                state.listaClientes     = respuesta.clientes || []; // <-- nuevo campo
-                pos.renderizar();
-                admin.renderizar();
+                state.catalogoPlatos   = respuesta.catalogo      || [];
+                state.catalogoBebidas  = respuesta.catalogoBebidas || [];
+                state.menuPlatosHoy    = respuesta.menuDia       || [];
+                state.menuBebidasHoy   = respuesta.menuBebidasDia || [];
+                state.listaClientes    = respuesta.clientes      || [];
+
+                // Si veníamos de "iniciarServicio" abrimos POS; si de "irAAdmin" abrimos Admin
+                if (state.currentView === 'admin') {
+                    admin.renderizar();
+                } else {
+                    pos.renderizar();
+                    pos.renderizarBebidas();
+                    app._abrirPOS();
+                }
             } else {
                 alert('Error del servidor: ' + respuesta.message);
             }
@@ -132,13 +226,18 @@ const api = {
         }
     },
 
-    async guardarMenuDia(seleccionados) {
-        return api.hacerPeticion({ action: 'guardar_menu_dia', menus: seleccionados });
+    async guardarMenuDia(platosSeleccionados, bebidasSeleccionadas) {
+        return api.hacerPeticion({
+            action:         'guardar_menu_dia',
+            tipo_servicio:  state.tipoServicio,
+            menus:          platosSeleccionados,
+            bebidas:        bebidasSeleccionadas,
+        });
     },
 };
 
 // ─────────────────────────────────────────────
-// 6. COLA OFFLINE
+// 7. COLA OFFLINE
 // ─────────────────────────────────────────────
 const cola = {
     guardar(payload) {
@@ -150,7 +249,6 @@ const cola = {
 
     async procesar() {
         if (!navigator.onLine || state.colaPedidos.length === 0 || state.sincronizando) return;
-
         state.sincronizando = true;
         const pendientes = [...state.colaPedidos];
 
@@ -162,7 +260,7 @@ const cola = {
                     localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
                     console.log('Pedido sincronizado:', pedido.idLocal);
                 } else {
-                    console.error('Error del servidor al sincronizar:', respuesta.message);
+                    console.error('Error al sincronizar:', respuesta.message);
                     break;
                 }
             } catch {
@@ -170,97 +268,141 @@ const cola = {
                 break;
             }
         }
-
         state.sincronizando = false;
     },
 };
 
 // ─────────────────────────────────────────────
-// 7. VISTA — POS
+// 8. POS — VISTA DE PEDIDOS
 // ─────────────────────────────────────────────
 const pos = {
+    // ── Renderizar grilla de PLATOS ──────────
     renderizar() {
-        // Reemplazar el nodo elimina todos los listeners acumulados de llamadas anteriores
         const old = document.getElementById('menus-container');
         const container = old.cloneNode(false);
         old.parentNode.replaceChild(container, old);
-        state.cantidadesPedido = {};
+        state.cantidadesPlatos = {};
 
-        const platosDeHoy = state.catalogoMaestro.filter(p =>
-            state.menuDelDiaNombres.includes(p.nombre)
+        const platosDeHoy = state.catalogoPlatos.filter(p =>
+            state.menuPlatosHoy.includes(p.nombre)
         );
 
         if (platosDeHoy.length === 0) {
             container.innerHTML = `
-                <div style="grid-column:1/-1; text-align:center; margin-top:50px; font-size:1.2rem;">
-                    No hay menús configurados para hoy. Usa el botón superior derecho para seleccionarlos.
+                <div style="grid-column:1/-1;text-align:center;padding:20px;font-size:1.1rem;color:#6b8fa3;">
+                    No hay platos configurados para hoy.
                 </div>`;
             pos.calcularTotal();
             return;
         }
 
         platosDeHoy.forEach((plato, index) => {
-            const precioFormateado = plato.precio.toLocaleString('es-CO');
-            state.cantidadesPedido[plato.nombre] = 0;
-            const elementId = `qty-${index}`;
-
-            const card = document.createElement('div');
-            card.className = 'menu-card';
-            card.innerHTML = `
-                <div class="menu-info">
-                    <div class="menu-name">${plato.nombre}</div>
-                    <div class="menu-price">$${precioFormateado}</div>
-                </div>
-                <div class="controls">
-                    <button class="btn-qty" data-nombre="${plato.nombre}" data-cambio="-1" data-target="${elementId}">-</button>
-                    <div class="qty-display" id="${elementId}">0</div>
-                    <button class="btn-qty" data-nombre="${plato.nombre}" data-cambio="1"  data-target="${elementId}">+</button>
-                </div>`;
+            state.cantidadesPlatos[plato.nombre] = 0;
+            const elementId = `qty-plato-${index}`;
+            const card = pos._crearCard(plato, elementId);
             container.appendChild(card);
         });
 
         container.addEventListener('click', (e) => {
             const btn = e.target.closest('.btn-qty');
             if (!btn) return;
-            pos.actualizarCantidad(
-                btn.dataset.nombre,
-                parseInt(btn.dataset.cambio, 10),
-                btn.dataset.target
-            );
+            pos._actualizarCantidad(state.cantidadesPlatos, btn.dataset.nombre,
+                parseInt(btn.dataset.cambio, 10), btn.dataset.target);
         });
 
         pos.calcularTotal();
     },
 
-    actualizarCantidad(nombrePlato, cambio, elementId) {
-        let nueva = (state.cantidadesPedido[nombrePlato] || 0) + cambio;
+    // ── Renderizar grilla de BEBIDAS ─────────
+    renderizarBebidas() {
+        const old = document.getElementById('bebidas-container');
+        const container = old.cloneNode(false);
+        old.parentNode.replaceChild(container, old);
+        state.cantidadesBebidas = {};
+
+        const bebidasDeHoy = state.catalogoBebidas.filter(b =>
+            state.menuBebidasHoy.includes(b.nombre)
+        );
+
+        if (bebidasDeHoy.length === 0) {
+            container.innerHTML = `
+                <div style="grid-column:1/-1;text-align:center;padding:20px;font-size:1.1rem;color:#6b8fa3;">
+                    No hay bebidas configuradas para hoy.
+                </div>`;
+            pos.calcularTotal();
+            return;
+        }
+
+        bebidasDeHoy.forEach((bebida, index) => {
+            state.cantidadesBebidas[bebida.nombre] = 0;
+            const elementId = `qty-bebida-${index}`;
+            const card = pos._crearCard(bebida, elementId);
+            container.appendChild(card);
+        });
+
+        container.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-qty');
+            if (!btn) return;
+            pos._actualizarCantidad(state.cantidadesBebidas, btn.dataset.nombre,
+                parseInt(btn.dataset.cambio, 10), btn.dataset.target);
+        });
+
+        pos.calcularTotal();
+    },
+
+    // ── Helper: crea un card de ítem ─────────
+    _crearCard(item, elementId) {
+        const precioBadge = (item.precio != null && item.precio > 0)
+            ? `<div class="menu-price">$${item.precio.toLocaleString('es-CO')}</div>`
+            : '';
+        const card = document.createElement('div');
+        card.className = 'menu-card';
+        card.innerHTML = `
+            <div class="menu-info">
+                <div class="menu-name">${item.nombre}</div>
+                ${precioBadge}
+            </div>
+            <div class="controls">
+                <button class="btn-qty" data-nombre="${item.nombre}" data-cambio="-1" data-target="${elementId}">-</button>
+                <div class="qty-display" id="${elementId}">0</div>
+                <button class="btn-qty" data-nombre="${item.nombre}" data-cambio="1"  data-target="${elementId}">+</button>
+            </div>`;
+        return card;
+    },
+
+    // ── Helper: actualiza cantidad en un mapa ─
+    _actualizarCantidad(mapaQty, nombre, cambio, elementId) {
+        let nueva = (mapaQty[nombre] || 0) + cambio;
         if (nueva < 0) nueva = 0;
-        state.cantidadesPedido[nombrePlato] = nueva;
+        mapaQty[nombre] = nueva;
         document.getElementById(elementId).innerText = nueva;
         pos.calcularTotal();
     },
 
+    // ── Calcular total combinado ──────────────
     calcularTotal() {
         let total = 0;
-        for (const [nombre, qty] of Object.entries(state.cantidadesPedido)) {
+
+        for (const [nombre, qty] of Object.entries(state.cantidadesPlatos)) {
             if (qty > 0) {
-                const info = state.catalogoMaestro.find(p => p.nombre === nombre);
+                const info = state.catalogoPlatos.find(p => p.nombre === nombre);
                 total += qty * (info?.precio ?? 0);
             }
         }
+        // Bebidas no tienen precio — no suman al total monetario
+
         document.getElementById('order-total').innerText = '$' + total.toLocaleString('es-CO');
     },
 
+    // ── Salón / Domicilio ─────────────────────
     selectTipo(tipo) {
         state.tipoActual = tipo;
         document.getElementById('btn-salon').classList.toggle('active', tipo === 'Salón');
         document.getElementById('btn-domicilio').classList.toggle('active', tipo === 'Domicilio');
 
-        // Mostrar / ocultar panel de domicilio
         const panel = document.getElementById('domicilio-fields');
         if (panel) panel.style.display = tipo === 'Domicilio' ? 'flex' : 'none';
 
-        // Limpiar al volver a Salón
         if (tipo === 'Salón') {
             state.domicilioPara  = '';
             state.domicilioQuien = '';
@@ -272,52 +414,58 @@ const pos = {
         }
     },
 
+    // ── Registrar pedido ──────────────────────
     registrarPedido() {
-        const carritoFinal = Object.entries(state.cantidadesPedido)
+        // Construir carrito de platos
+        const carritoPlatos = Object.entries(state.cantidadesPlatos)
             .filter(([, qty]) => qty > 0)
             .map(([nombre, qty]) => {
-                const info = state.catalogoMaestro.find(p => p.nombre === nombre);
-                return { item: nombre, qty, precio: info?.precio ?? 0 };
+                const info = state.catalogoPlatos.find(p => p.nombre === nombre);
+                return { item: nombre, qty, precio: info?.precio ?? 0, categoria: 'Plato' };
             });
 
+        // Construir carrito de bebidas
+        const carritoBebidas = Object.entries(state.cantidadesBebidas)
+            .filter(([, qty]) => qty > 0)
+            .map(([nombre, qty]) => {
+                const info = state.catalogoBebidas.find(b => b.nombre === nombre);
+                return { item: nombre, qty, categoria: 'Bebida' };
+            });
+
+        const carritoFinal = [...carritoPlatos, ...carritoBebidas];
+
         if (carritoFinal.length === 0) {
-            alert('Debes agregar al menos un platillo para registrar el pedido.');
+            alert('Debes agregar al menos un plato o bebida para registrar el pedido.');
             return;
         }
 
-        // Validaciones adicionales para domicilio
         if (state.tipoActual === 'Domicilio') {
             const para  = document.getElementById('domicilio-para')?.value.trim();
             const quien = document.getElementById('domicilio-quien')?.value.trim();
-            if (!para) {
-                alert('Por favor indica el local destino (¿Para Dónde?).');
-                return;
-            }
-            if (!quien) {
-                alert('Por favor indica quién recibe el pedido (¿Para Quién?).');
-                return;
-            }
+            if (!para)  { alert('Por favor indica el local destino (¿Para Dónde?).'); return; }
+            if (!quien) { alert('Por favor indica quién recibe el pedido (¿Para Quién?).'); return; }
             state.domicilioPara  = para;
             state.domicilioQuien = quien;
         }
 
         const payload = {
-            action: 'registrar_pedido',
-            tipo:   state.tipoActual,
-            carrito: carritoFinal,
-            // Solo se adjuntan si el tipo es Domicilio
+            action:        'registrar_pedido',
+            tipo_servicio: state.tipoServicio,
+            tipo:          state.tipoActual,
+            carrito:       carritoFinal,
             ...(state.tipoActual === 'Domicilio' && {
                 domicilio_para:  state.domicilioPara,
                 domicilio_quien: state.domicilioQuien,
             }),
         };
 
-        ui.mostrarToast('Pedido registrado');
-        const tipoTras = state.tipoActual; // guardar antes de renderizar
+        ui.mostrarToast('Pedido registrado ✓');
+
+        const tipoTras = state.tipoActual;
         pos.renderizar();
+        pos.renderizarBebidas();
 
         if (tipoTras === 'Domicilio') {
-            // Mantener pestaña Domicilio, solo limpiar los campos
             pos.selectTipo('Domicilio');
             state.domicilioPara  = '';
             state.domicilioQuien = '';
@@ -335,7 +483,7 @@ const pos = {
 };
 
 // ─────────────────────────────────────────────
-// 8. AUTOCOMPLETE DE LOCALES (DOMICILIO)
+// 9. AUTOCOMPLETE — "Para Dónde"
 // ─────────────────────────────────────────────
 const domicilioAutocomplete = {
     init() {
@@ -355,17 +503,16 @@ const domicilioAutocomplete = {
 
             coincidencias.forEach(cliente => {
                 const item = document.createElement('div');
-                item.className  = 'autocomplete-item';
+                item.className   = 'autocomplete-item';
                 item.textContent = cliente;
-                item.addEventListener('mousedown', () => { // mousedown antes del blur
-                    input.value = cliente;
+                item.addEventListener('mousedown', () => {
+                    input.value  = cliente;
                     lista.innerHTML = '';
                 });
                 lista.appendChild(item);
             });
         });
 
-        // Cerrar al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (!input.contains(e.target) && !lista.contains(e.target)) {
                 lista.innerHTML = '';
@@ -380,36 +527,69 @@ const domicilioAutocomplete = {
 };
 
 // ─────────────────────────────────────────────
-// 9. VISTA — ADMIN
+// 10. ADMIN — CONFIGURACIÓN DEL MENÚ DEL DÍA
 // ─────────────────────────────────────────────
 const admin = {
+    _tabActual: 'platos',
+
     renderizar() {
+        admin._renderizarPlatos();
+        admin._renderizarBebidas();
+        app._abrirAdmin();
+        admin.selectTab('platos');
+    },
+
+    _renderizarPlatos() {
         const container = document.getElementById('admin-list-container');
         container.innerHTML = '';
-
-        state.catalogoMaestro.forEach((plato, index) => {
-            const checked = state.menuDelDiaNombres.includes(plato.nombre) ? 'checked' : '';
+        state.catalogoPlatos.forEach((plato, index) => {
+            const checked = state.menuPlatosHoy.includes(plato.nombre) ? 'checked' : '';
             const item = document.createElement('div');
             item.className = 'admin-item';
             item.innerHTML = `
-                <input type="checkbox" class="admin-checkbox" id="chk-${index}" value="${plato.nombre}" ${checked}>
-                <label for="chk-${index}">${plato.nombre}</label>`;
+                <input type="checkbox" class="admin-plato-check" id="chk-p-${index}"
+                       value="${plato.nombre}" ${checked}>
+                <label for="chk-p-${index}">${plato.nombre}</label>`;
             container.appendChild(item);
         });
     },
 
+    _renderizarBebidas() {
+        const container = document.getElementById('admin-bebidas-container');
+        container.innerHTML = '';
+        state.catalogoBebidas.forEach((bebida, index) => {
+            const checked = state.menuBebidasHoy.includes(bebida.nombre) ? 'checked' : '';
+            const item = document.createElement('div');
+            item.className = 'admin-item';
+            item.innerHTML = `
+                <input type="checkbox" class="admin-bebida-check" id="chk-b-${index}"
+                       value="${bebida.nombre}" ${checked}>
+                <label for="chk-b-${index}">${bebida.nombre}</label>`;
+            container.appendChild(item);
+        });
+    },
+
+    selectTab(tab) {
+        admin._tabActual = tab;
+        document.getElementById('tab-platos').classList.toggle('active',  tab === 'platos');
+        document.getElementById('tab-bebidas').classList.toggle('active', tab === 'bebidas');
+        document.getElementById('admin-platos-content').style.display  = tab === 'platos'  ? 'flex' : 'none';
+        document.getElementById('admin-bebidas-content').style.display = tab === 'bebidas' ? 'flex' : 'none';
+    },
+
     async guardarMenuDia() {
-        const seleccionados = Array.from(
-            document.querySelectorAll('.admin-checkbox:checked')
-        ).map(cb => cb.value);
+        const platosSeleccionados  = Array.from(document.querySelectorAll('.admin-plato-check:checked')).map(cb => cb.value);
+        const bebidasSeleccionadas = Array.from(document.querySelectorAll('.admin-bebida-check:checked')).map(cb => cb.value);
 
         ui.mostrarCarga(true, 'Guardando menú del día...');
         try {
-            const respuesta = await api.guardarMenuDia(seleccionados);
+            const respuesta = await api.guardarMenuDia(platosSeleccionados, bebidasSeleccionadas);
             if (respuesta.status === 'success') {
-                state.menuDelDiaNombres = seleccionados;
-                ui.mostrarToast('Menú actualizado');
+                state.menuPlatosHoy  = platosSeleccionados;
+                state.menuBebidasHoy = bebidasSeleccionadas;
+                ui.mostrarToast('Menú actualizado ✓');
                 pos.renderizar();
+                pos.renderizarBebidas();
                 ui.toggleView();
             } else {
                 alert('Error al guardar: ' + respuesta.message);
@@ -424,15 +604,15 @@ const admin = {
 };
 
 // ─────────────────────────────────────────────
-// 10. UTILIDADES DE UI
+// 11. UI — UTILIDADES DE INTERFAZ
 // ─────────────────────────────────────────────
 const ui = {
     toggleView() {
-        const isPOS = state.currentView === 'pos';
-        document.getElementById('pos-view').style.display   = isPOS ? 'none'  : 'flex';
-        document.getElementById('admin-view').style.display = isPOS ? 'flex'  : 'none';
-        document.getElementById('btn-toggle').innerText     = isPOS ? 'Volver a Ventas' : 'Configurar Menú';
-        state.currentView = isPOS ? 'admin' : 'pos';
+        if (state.currentView === 'pos') {
+            admin.renderizar(); // también llama a app._abrirAdmin()
+        } else {
+            app._abrirPOS();
+        }
     },
 
     mostrarToast(mensaje) {
