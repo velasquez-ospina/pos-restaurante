@@ -1,6 +1,4 @@
-/* ══════════════════════════════════════════════
-   VARIABLES Y RESET
-══════════════════════════════════════════════ */
+
 :root {
     --ocean-deep:      #005b96;
     --ocean-light:     #0277bd;
@@ -31,9 +29,6 @@ body {
     touch-action: manipulation;
 }
 
-/* ══════════════════════════════════════════════
-   PANTALLA PRINCIPAL (HOME)
-══════════════════════════════════════════════ */
 #home-view {
     display: flex;
     flex-direction: column;
@@ -142,9 +137,6 @@ body {
     background: #eef6f8;
 }
 
-/* ══════════════════════════════════════════════
-   ENCABEZADO
-══════════════════════════════════════════════ */
 .header-container {
     display: flex;
     justify-content: space-between;
@@ -183,7 +175,6 @@ body {
     user-select: none;
 }
 
-/* Badge de servicio en el título */
 .header-title .badge-servicio {
     display: inline-block;
     font-size: 0.7rem;
@@ -210,9 +201,6 @@ body {
 }
 .btn-admin-toggle:active { background: var(--ocean-deep); color: var(--pure-white); }
 
-/* ══════════════════════════════════════════════
-   POS VIEW — layout
-══════════════════════════════════════════════ */
 #pos-view {
     display: flex;
     flex-direction: column;
@@ -220,7 +208,6 @@ body {
     overflow: hidden;
 }
 
-/* ── Tipo (Salón / Domicilio) ── */
 .tipo-container {
     display: flex;
     gap: 15px;
@@ -248,7 +235,6 @@ body {
     transform: translateY(-2px);
 }
 
-/* ── Section labels (Platos / Bebidas) ── */
 .section-label {
     font-size: 1rem;
     font-weight: 700;
@@ -261,7 +247,6 @@ body {
     margin-bottom: 12px;
 }
 
-/* ── Grid de items ── */
 .menus-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
@@ -269,7 +254,6 @@ body {
     padding-bottom: 8px;
 }
 
-/* Scroll wraps both grids together */
 #pos-scroll-area {
     flex-grow: 1;
     overflow-y: auto;
@@ -322,7 +306,6 @@ body {
     color: var(--ocean-deep);
 }
 
-/* ── Total ── */
 .total-container {
     background: var(--pure-white);
     border: 2px solid var(--ocean-light);
@@ -336,9 +319,6 @@ body {
 .total-label { font-size: 1.4rem; font-weight: bold; color: var(--text-dark); }
 .total-value { font-size: 1.8rem; font-weight: bold; color: var(--ocean-deep); }
 
-/* ══════════════════════════════════════════════
-   ADMIN VIEW
-══════════════════════════════════════════════ */
 #admin-view {
     display: flex;
     flex-direction: column;
@@ -404,9 +384,6 @@ body {
     accent-color: var(--ocean-deep);
 }
 
-/* ══════════════════════════════════════════════
-   BOTÓN ACCIÓN PRINCIPAL
-══════════════════════════════════════════════ */
 .btn-action {
     width: 100%;
     padding: 22px;
@@ -420,9 +397,6 @@ body {
 .btn-action:active    { transform: scale(0.98); }
 .btn-action:disabled  { background: #bdc3c7; background-image: none; cursor: not-allowed; box-shadow: none; }
 
-/* ══════════════════════════════════════════════
-   PANEL DOMICILIO
-══════════════════════════════════════════════ */
 #domicilio-fields {
     flex-direction: column;
     gap: 10px;
@@ -451,7 +425,6 @@ body {
 }
 .domicilio-input:focus { border-color: var(--aqua-accent); background: var(--pure-white); }
 
-/* ── Autocomplete ── */
 .autocomplete-wrapper { position: relative; }
 
 .autocomplete-list {
@@ -463,17 +436,14 @@ body {
 }
 
 .autocomplete-item {
-    padding: 13px 15px; font-size: 1.05rem;
+    padding: 20px 20px; font-size: 1.15rem; font-weight: 500;
     cursor: pointer; border-bottom: 1px solid #eef6f8; color: var(--text-dark);
 }
 .autocomplete-item:last-child { border-bottom: none; }
 .autocomplete-item:hover, .autocomplete-item:active {
-    background: #eef6f8; color: var(--ocean-deep); font-weight: 600;
+    background: #eef6f8; color: var(--ocean-deep); font-weight: 700;
 }
 
-/* ══════════════════════════════════════════════
-   TOAST
-══════════════════════════════════════════════ */
 .toast {
     position: fixed; top: 50%; left: 50%;
     transform: translate(-50%, -50%);
@@ -483,9 +453,39 @@ body {
     display: none; z-index: 1000; text-align: center;
 }
 
-/* ══════════════════════════════════════════════
-   LOADING OVERLAY
-══════════════════════════════════════════════ */
+#modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(44, 62, 80, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 3000; display: none;
+    flex-direction: column; justify-content: center; align-items: center;
+}
+
+.custom-modal {
+    background: #fff; border-radius: 18px;
+    box-shadow: 0 10px 30px rgba(0, 91, 150, 0.2);
+    padding: 25px; width: 90%; max-width: 340px;
+    text-align: left;
+}
+
+.custom-modal-title { font-size: 1.2rem; font-weight: bold; color: var(--ocean-deep); margin-bottom: 10px; }
+.custom-modal-body { font-size: 1.05rem; color: var(--text-dark); margin-bottom: 20px; line-height: 1.4; }
+
+.custom-modal input {
+    width: 100%; box-sizing: border-box; padding: 15px; font-size: 1.1rem;
+    border: 2px solid #cfdfe6; border-radius: 12px; margin-bottom: 20px; outline: none;
+}
+.custom-modal input:focus { border-color: var(--aqua-accent); }
+
+.custom-modal-buttons { display: flex; gap: 10px; }
+.btn-cancel, .btn-confirm {
+    flex: 1; padding: 14px; border-radius: 12px; cursor: pointer;
+    font-weight: bold; font-size: 1rem; border: none; transition: transform 0.1s;
+}
+.btn-cancel { background: #eef6f8; color: var(--ocean-deep); }
+.btn-confirm { background: var(--ocean-deep); color: white; }
+.btn-cancel:active, .btn-confirm:active { transform: scale(0.96); }
+
 #loading-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
     background: rgba(255, 255, 255, 0.92);
@@ -494,9 +494,6 @@ body {
     font-size: 1.4rem; color: var(--ocean-deep); font-weight: bold;
 }
 
-/* ══════════════════════════════════════════════
-   HEADER — lado derecho con botón historial
-══════════════════════════════════════════════ */
 .header-right {
     display: flex;
     align-items: center;
@@ -525,9 +522,6 @@ body {
     color: white;
 }
 
-/* ══════════════════════════════════════════════
-   VISTA HISTORIAL
-══════════════════════════════════════════════ */
 #historial-view {
     display: flex;
     flex-direction: column;
@@ -552,7 +546,6 @@ body {
     font-size: 1.1rem;
 }
 
-/* ── Tarjeta de pedido ── */
 .historial-card {
     background: var(--pure-white);
     border-radius: 18px;
@@ -590,7 +583,6 @@ body {
     color: var(--ocean-deep);
 }
 
-/* Badges de tipo */
 .historial-tipo {
     padding: 5px 12px;
     border-radius: 20px;
@@ -601,7 +593,6 @@ body {
 .historial-tipo-domicilio   { background: #fef3e0; color: #c0720b; }
 .historial-tipo-para-llevar { background: #e8f8f0; color: #1a7a47; }
 
-/* ── Lista de ítems ── */
 .historial-items {
     display: flex;
     flex-direction: column;
@@ -633,7 +624,6 @@ body {
     font-size: 0.9rem;
 }
 
-/* ── Domicilio y total ── */
 .historial-domicilio {
     font-size: 0.95rem;
     color: #c0720b;
@@ -651,7 +641,6 @@ body {
     padding-top: 8px;
 }
 
-/* ── Botón secundario (Actualizar) ── */
 .btn-action-secondary {
     background: var(--pure-white);
     color: var(--ocean-deep);
@@ -665,14 +654,12 @@ body {
     color: white;
 }
 
-/* Divisor entre platos y bebidas en el historial */
 .historial-items-divider {
     border: none;
     border-top: 1px solid #ddeaf0;
     margin: 5px 0;
 }
 
-/* Información de domicilio en tarjeta de historial */
 .historial-domicilio {
     display: flex;
     align-items: center;
