@@ -217,7 +217,12 @@ const api = {
                     app._abrirPOS();
                 }
             } else {
-                ui.alert('Error del servidor', respuesta.message);
+                await ui.alert('Error del servidor', respuesta.message);
+                if (respuesta.message === "Acceso denegado.") {
+                    localStorage.removeItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN);
+                    state.posToken = null;
+                    await auth.verificarSeguridad();
+                }
             }
         } catch (error) {
             ui.alert('Problema de Red', 'Fallo de conexión. Revisa el internet de la tablet.');

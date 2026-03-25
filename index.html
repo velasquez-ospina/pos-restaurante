@@ -126,6 +126,7 @@
 
         document.getElementById('btn-back').addEventListener('click',   () => app.volverAInicio());
         document.getElementById('header-title').addEventListener('click',() => auth.resetearClave());
+        document.querySelector('.home-title').addEventListener('click',() => auth.resetearClave());
         document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
 
         document.getElementById('btn-salon').addEventListener('click',      () => pos.selectTipo('Salon'));
