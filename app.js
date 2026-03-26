@@ -175,9 +175,9 @@ const api = {
                 { data: _sections, error: errSec },
                 { data: _clients, error: errClients }
             ] = await Promise.all([
-                supabase.from('menu_dishes').select('*, menu_sections(*), dish_modifications(*)'),
-                supabase.from('menu_sections').select('*'),
-                supabase.from('clients').select('*')
+                supabaseClient.from('menu_dishes').select('*, menu_sections(*), dish_modifications(*)'),
+                supabaseClient.from('menu_sections').select('*'),
+                supabaseClient.from('clients').select('*')
             ]);
 
             if (errDishes) throw errDishes;
@@ -280,7 +280,7 @@ const cola = {
             try {
                 const p = pedido.payload;
                 
-                const { data: orderData, error: orderErr } = await supabase.from('customer_orders').insert({
+                const { data: orderData, error: orderErr } = await supabaseClient.from('customer_orders').insert({
                     order_type: p.tipo,
                     customer_name: p.domicilio_quien || null,
                     delivery_destination: p.domicilio_para || null,
@@ -298,7 +298,7 @@ const cola = {
                         modifications_selected: c.mods && c.mods.length > 0 ? c.mods.join(', ') : null
                     }));
 
-                    const { error: lineErr } = await supabase.from('order_line_items').insert(lineItems);
+                    const { error: lineErr } = await supabaseClient.from('order_line_items').insert(lineItems);
                     if (lineErr) throw lineErr;
                 }
 
@@ -811,7 +811,7 @@ const historial = {
         const container = document.getElementById('historial-container');
         container.innerHTML = '<div class="historial-empty">Cargando...</div>';
         try {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('customer_orders')
                 .select('*, order_line_items(*, menu_dishes(name))')
                 .order('created_at', { ascending: false })
