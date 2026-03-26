@@ -206,7 +206,7 @@ const api = {
                             mGroups[cat].push(m);
                         });
 
-                        let combos = [ { mods: [], price: 0, str: [] } ];
+                        let combos = [{ mods: [], price: 0, str: [] }];
                         Object.values(mGroups).forEach(group => {
                             const newCombos = [];
                             group.forEach(mod => {
@@ -223,7 +223,7 @@ const api = {
 
                         combos.forEach(c => {
                             pList.push({
-                                id: d.id, 
+                                id: d.id,
                                 nombre: `${d.name} (${c.str.join(' + ')})`,
                                 precio: Number(d.base_price) + c.price,
                                 mods: c.mods,
@@ -260,7 +260,7 @@ const api = {
     async guardarMenuDia(platosIds, bebidasIds) {
         const todosSeleccionados = new Set([...platosIds, ...bebidasIds]);
         const uniqueBases = new Map();
-        
+
         state.catalogoPlatos.forEach(p => uniqueBases.set(p.base.id, p.base.id));
         state.catalogoBebidas.forEach(b => uniqueBases.set(b.base.id, b.base.id));
 
@@ -270,7 +270,7 @@ const api = {
         }));
 
         try {
-            await Promise.all(updates.map(u => 
+            await Promise.all(updates.map(u =>
                 supabaseClient.from('menu_dishes')
                     .update({ is_available: u.is_available })
                     .eq('id', u.id)
@@ -278,7 +278,7 @@ const api = {
 
             state.cantidadesPlatos = {};
             state.cantidadesBebidas = {};
-            
+
             setTimeout(() => api.obtenerDatosBackend(), 100);
             return { status: 'success' };
         } catch (e) {
@@ -305,14 +305,14 @@ const cola = {
         for (const pedido of pendientes) {
             try {
                 const p = pedido.payload;
-                
+
                 const { data: orderData, error: orderErr } = await supabaseClient.from('customer_orders').insert({
                     order_type: p.tipo,
                     customer_name: p.domicilio_quien || null,
                     delivery_destination: p.domicilio_para || null,
                     total_amount: p.total
                 }).select().single();
-                
+
                 if (orderErr) throw orderErr;
 
                 if (p.carrito && p.carrito.length > 0) {
@@ -440,7 +440,7 @@ const pos = {
             return 'Opciones';
         }
     },
-    
+
     _extraerMod(nombre, tipo) {
         const n = nombre.toLowerCase();
         if (tipo === 'Huevos') {
@@ -458,18 +458,18 @@ const pos = {
         const card = document.createElement('div');
         card.className = 'menu-card parent-card';
         card.dataset.grupo = titulo;
-        
-        const precioBadge = (grupo.minPrecio > 0) 
-            ? `<div class="menu-price">Desde $${grupo.minPrecio.toLocaleString('es-CO')}</div>` 
+
+        const precioBadge = (grupo.minPrecio > 0)
+            ? `<div class="menu-price">Desde $${grupo.minPrecio.toLocaleString('es-CO')}</div>`
             : '';
-            
+
         const porBase = {};
         grupo.variantes.forEach(v => {
             const base = pos._extraerBase(v.nombre, titulo);
             if (!porBase[base]) porBase[base] = [];
             porBase[base].push(v);
         });
-        
+
         let accordionHtml = '<div class="accordion-content" style="display:none; width: 100%;">';
         for (const [base, items] of Object.entries(porBase)) {
             accordionHtml += `<div class="accordion-base-title">${base}</div>`;
@@ -480,7 +480,7 @@ const pos = {
                     <div class="accordion-variant">
                         <div class="accordion-variant-info">
                             <span class="acc-v-name">${mod}</span>
-                            <span class="acc-v-price">$${(item.precio||0).toLocaleString('es-CO')}</span>
+                            <span class="acc-v-price">$${(item.precio || 0).toLocaleString('es-CO')}</span>
                         </div>
                         <div class="controls acc-controls">
                             <button class="btn-qty" data-nombre="${item.nombre}" data-cambio="-1" data-target="${safeId}">-</button>
@@ -563,10 +563,10 @@ const pos = {
         let nueva = (mapaQty[nombre] || 0) + cambio;
         if (nueva < 0) nueva = 0;
         mapaQty[nombre] = nueva;
-        
+
         const el = document.getElementById(elementId);
         if (el) el.innerText = nueva;
-        
+
         pos.calcularTotal();
 
         ['Huevos', 'Calentados'].forEach(grupo => {
@@ -753,7 +753,7 @@ const admin = {
     _renderizarPlatos() {
         const container = document.getElementById('admin-list-container');
         container.innerHTML = '';
-        
+
         const uniqueBases = new Map();
         state.catalogoPlatos.forEach(plato => {
             if (!uniqueBases.has(plato.base.id)) {
@@ -761,7 +761,9 @@ const admin = {
             }
         });
 
-        Array.from(uniqueBases.values()).forEach((baseDish, index) => {
+        const sortedPlatos = Array.from(uniqueBases.values()).sort((a, b) => a.name.localeCompare(b.name, 'es-CO'));
+
+        sortedPlatos.forEach((baseDish, index) => {
             const checked = baseDish.is_available ? 'checked' : '';
             const item = document.createElement('div');
             item.className = 'admin-item';
@@ -784,7 +786,9 @@ const admin = {
             }
         });
 
-        Array.from(uniqueBases.values()).forEach((baseDish, index) => {
+        const sortedBebidas = Array.from(uniqueBases.values()).sort((a, b) => a.name.localeCompare(b.name, 'es-CO'));
+
+        sortedBebidas.forEach((baseDish, index) => {
             const checked = baseDish.is_available ? 'checked' : '';
             const item = document.createElement('div');
             item.className = 'admin-item';
@@ -813,7 +817,6 @@ const admin = {
             const respuesta = await api.guardarMenuDia(platosSeleccionados, bebidasSeleccionadas);
             if (respuesta.status === 'success') {
                 ui.mostrarToast('Menú actualizado correctamente');
-                // The UI resets cleanly backwards via api.obtenerDatosBackend invocation
             } else {
                 ui.alert('Error al guardar', respuesta.message);
             }
