@@ -301,14 +301,57 @@ const pos = {
             return;
         }
 
-        platosDeHoy.forEach((plato, index) => {
+        const grupos = {
+            'Huevos': { variantes: [], minPrecio: Infinity },
+            'Calentados': { variantes: [], minPrecio: Infinity },
+            'Otros': []
+        };
+
+        platosDeHoy.forEach((plato) => {
             state.cantidadesPlatos[plato.nombre] = 0;
+            const nm = plato.nombre.toLowerCase();
+            if (nm.startsWith('huevo')) {
+                grupos['Huevos'].variantes.push(plato);
+                if (plato.precio > 0 && plato.precio < grupos['Huevos'].minPrecio) grupos['Huevos'].minPrecio = plato.precio;
+            } else if (nm.startsWith('calentado')) {
+                grupos['Calentados'].variantes.push(plato);
+                if (plato.precio > 0 && plato.precio < grupos['Calentados'].minPrecio) grupos['Calentados'].minPrecio = plato.precio;
+            } else {
+                grupos['Otros'].push(plato);
+            }
+        });
+
+        if (grupos['Huevos'].variantes.length > 0) {
+            if (grupos['Huevos'].minPrecio === Infinity) grupos['Huevos'].minPrecio = 0;
+            container.appendChild(pos._crearParentCard('Huevos', grupos['Huevos']));
+        }
+        if (grupos['Calentados'].variantes.length > 0) {
+            if (grupos['Calentados'].minPrecio === Infinity) grupos['Calentados'].minPrecio = 0;
+            container.appendChild(pos._crearParentCard('Calentados', grupos['Calentados']));
+        }
+
+        grupos['Otros'].forEach((plato, index) => {
             const elementId = `qty-plato-${index}`;
             const card = pos._crearCard(plato, elementId);
             container.appendChild(card);
         });
 
         container.addEventListener('click', (e) => {
+            const expandBtn = e.target.closest('.btn-expand-accordion');
+            if (expandBtn) {
+                const card = expandBtn.closest('.parent-card');
+                card.classList.toggle('expanded');
+                const content = card.querySelector('.accordion-content');
+                if (card.classList.contains('expanded')) {
+                    content.style.display = 'block';
+                    expandBtn.querySelector('.expand-icon').innerText = '🔼 Ocultar';
+                } else {
+                    content.style.display = 'none';
+                    expandBtn.querySelector('.expand-icon').innerText = '🔽 Opciones';
+                }
+                return;
+            }
+
             const btn = e.target.closest('.btn-qty');
             if (!btn) return;
             pos._actualizarCantidad(state.cantidadesPlatos, btn.dataset.nombre,
@@ -316,6 +359,86 @@ const pos = {
         });
 
         pos.calcularTotal();
+    },
+
+    _extraerBase(nombre, tipo) {
+        const n = nombre.toLowerCase();
+        if (tipo === 'Huevos') {
+            if (n.includes('ranchero')) return 'Rancheros';
+            if (n.includes('cacerola')) return 'En Cacerola';
+            if (n.includes('revuelto')) return 'Revueltos';
+            if (n.includes('perico')) return 'Pericos';
+            return 'Opciones';
+        } else {
+            if (n.includes('res')) return 'Res';
+            if (n.includes('cerdo')) return 'Cerdo';
+            if (n.includes('azadura')) return 'Azadura';
+            if (n.includes('chicharron') || n.includes('chicharrón')) return 'Chicharrón';
+            return 'Opciones';
+        }
+    },
+    
+    _extraerMod(nombre, tipo) {
+        const n = nombre.toLowerCase();
+        if (tipo === 'Huevos') {
+            if (n.includes('sin aliño')) return 'Sin aliños';
+            if (n.includes('aliño')) return 'Con aliños';
+            return 'Normal';
+        } else {
+            if (n.includes('ca')) return '+ Huevos CA';
+            if (n.includes('sa')) return '+ Huevos SA';
+            return 'Solo';
+        }
+    },
+
+    _crearParentCard(titulo, grupo) {
+        const card = document.createElement('div');
+        card.className = 'menu-card parent-card';
+        card.dataset.grupo = titulo;
+        
+        const precioBadge = (grupo.minPrecio > 0) 
+            ? `<div class="menu-price">Desde $${grupo.minPrecio.toLocaleString('es-CO')}</div>` 
+            : '';
+            
+        const porBase = {};
+        grupo.variantes.forEach(v => {
+            const base = pos._extraerBase(v.nombre, titulo);
+            if (!porBase[base]) porBase[base] = [];
+            porBase[base].push(v);
+        });
+        
+        let accordionHtml = '<div class="accordion-content" style="display:none; width: 100%;">';
+        for (const [base, items] of Object.entries(porBase)) {
+            accordionHtml += `<div class="accordion-base-title">${base}</div>`;
+            items.forEach((item, i) => {
+                const mod = pos._extraerMod(item.nombre, titulo);
+                const safeId = `qty-acc-${titulo}-${base}-${i}`.replace(/\s+/g, '-');
+                accordionHtml += `
+                    <div class="accordion-variant">
+                        <div class="accordion-variant-info">
+                            <span class="acc-v-name">${mod}</span>
+                            <span class="acc-v-price">$${(item.precio||0).toLocaleString('es-CO')}</span>
+                        </div>
+                        <div class="controls acc-controls">
+                            <button class="btn-qty" data-nombre="${item.nombre}" data-cambio="-1" data-target="${safeId}">-</button>
+                            <div class="qty-display" id="${safeId}">0</div>
+                            <button class="btn-qty" data-nombre="${item.nombre}" data-cambio="1"  data-target="${safeId}">+</button>
+                        </div>
+                    </div>`;
+            });
+        }
+        accordionHtml += '</div>';
+
+        card.innerHTML = `
+            <div class="parent-badge" id="badge-${titulo}" style="display:none;">0</div>
+            <div class="menu-info btn-expand-accordion" style="cursor:pointer; width:100%;">
+                <div class="menu-name">${titulo}</div>
+                ${precioBadge}
+                <div class="expand-icon">🔽 Opciones</div>
+            </div>
+            ${accordionHtml}
+        `;
+        return card;
     },
 
     renderizarBebidas() {
@@ -377,8 +500,27 @@ const pos = {
         let nueva = (mapaQty[nombre] || 0) + cambio;
         if (nueva < 0) nueva = 0;
         mapaQty[nombre] = nueva;
-        document.getElementById(elementId).innerText = nueva;
+        
+        const el = document.getElementById(elementId);
+        if (el) el.innerText = nueva;
+        
         pos.calcularTotal();
+
+        ['Huevos', 'Calentados'].forEach(grupo => {
+            const card = document.querySelector(`.parent-card[data-grupo="${grupo}"]`);
+            if (card) {
+                let total = 0;
+                const displays = card.querySelectorAll('.accordion-content .qty-display');
+                displays.forEach(d => total += parseInt(d.innerText, 10));
+                const badge = card.querySelector('.parent-badge');
+                if (total > 0) {
+                    badge.style.display = 'flex';
+                    badge.innerText = total;
+                } else {
+                    badge.style.display = 'none';
+                }
+            }
+        });
     },
 
     calcularTotal() {

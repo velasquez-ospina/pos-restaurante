@@ -671,3 +671,52 @@ body {
     padding: 7px 11px;
 }
 .historial-domicilio-icon { font-size: 1rem; }
+
+/* Parent Card & Expandable Accordion */
+.parent-card {
+    position: relative;
+    border-color: var(--ocean-light);
+    transition: all 0.3s ease;
+}
+
+.parent-card.expanded {
+    grid-column: 1 / -1;
+    background: var(--sand-white);
+    box-shadow: 0 8px 20px rgba(0, 91, 150, 0.15);
+}
+
+.parent-badge {
+    position: absolute; top: -10px; right: -10px;
+    background: #f39c12; color: white; border-radius: 50%;
+    width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+    font-weight: bold; font-size: 0.9rem; box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    z-index: 10;
+}
+
+.expand-icon {
+    margin-top: 10px; font-size: 0.95rem; font-weight: bold; color: var(--ocean-deep);
+    background: #eef6f8; padding: 6px 14px; border-radius: 12px; display: inline-block;
+}
+
+.accordion-content {
+    margin-top: 15px; border-top: 2px dashed #cfdfe6;
+    padding-top: 10px; text-align: left;
+}
+
+.accordion-base-title {
+    font-size: 1.1rem; font-weight: 700; color: var(--ocean-deep);
+    margin: 12px 0 6px; padding-bottom: 4px; border-bottom: 1px solid #cfdfe6;
+}
+
+.accordion-variant {
+    display: flex; justify-content: space-between; align-items: center;
+    background: white; padding: 10px 14px; border-radius: 12px;
+    margin-bottom: 8px; border: 1px solid #eef6f8;
+}
+
+.accordion-variant-info { display: flex; flex-direction: column; gap: 4px; }
+.acc-v-name { font-weight: 600; color: var(--text-dark); font-size: 1.05rem; }
+.acc-v-price { font-size: 0.9rem; color: #6b8fa3; font-weight: bold; }
+
+.acc-controls .btn-qty { width: 40px; height: 40px; font-size: 1.4rem; }
+.acc-controls .qty-display { font-size: 1.4rem; min-width: 30px; }
