@@ -1,11 +1,13 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS Restaurante</title>
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
 
     <div id="loading-overlay">Cargando...</div>
@@ -42,8 +44,8 @@
 
         <div class="tipo-container">
             <button class="btn-tipo active" id="btn-salon">Salon</button>
-            <button class="btn-tipo"        id="btn-domicilio">Domicilio</button>
-            <button class="btn-tipo"        id="btn-para-llevar">Para Llevar</button>
+            <button class="btn-tipo" id="btn-domicilio">Domicilio</button>
+            <button class="btn-tipo" id="btn-para-llevar">Para Llevar</button>
         </div>
 
         <div id="domicilio-fields" style="display:none;">
@@ -51,14 +53,14 @@
                 <label class="domicilio-label" for="domicilio-para">Para Donde?</label>
                 <div class="autocomplete-wrapper">
                     <input type="text" id="domicilio-para" class="domicilio-input"
-                           placeholder="Escribe el local de destino..." autocomplete="off">
+                        placeholder="Escribe el local de destino..." autocomplete="off">
                     <div id="domicilio-sugerencias" class="autocomplete-list"></div>
                 </div>
             </div>
             <div class="domicilio-field">
                 <label class="domicilio-label" for="domicilio-quien">Para Quien?</label>
-                <input type="text" id="domicilio-quien" class="domicilio-input"
-                       placeholder="Nombre de quien recibe..." autocomplete="off">
+                <input type="text" id="domicilio-quien" class="domicilio-input" placeholder="Nombre de quien recibe..."
+                    autocomplete="off">
             </div>
         </div>
 
@@ -87,7 +89,7 @@
 
         <div class="admin-tabs">
             <button class="btn-admin-tab active" id="tab-platos">Platos</button>
-            <button class="btn-admin-tab"        id="tab-bebidas">Bebidas</button>
+            <button class="btn-admin-tab" id="tab-bebidas">Bebidas</button>
         </div>
 
         <div class="admin-tab-content" id="admin-platos-content">
@@ -117,29 +119,33 @@
 
     <div class="toast" id="toast">Operacion exitosa</div>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-client.js"></script>
+
     <script src="app.js"></script>
     <script>
-        document.getElementById('btn-home-desayuno').addEventListener('click',  () => app.iniciarServicio('Desayuno'));
-        document.getElementById('btn-home-almuerzo').addEventListener('click',  () => app.iniciarServicio('Almuerzo'));
-        document.getElementById('btn-config-desayuno').addEventListener('click',() => app.irAAdmin('Desayuno'));
-        document.getElementById('btn-config-almuerzo').addEventListener('click',() => app.irAAdmin('Almuerzo'));
+        document.getElementById('btn-home-desayuno').addEventListener('click', () => app.iniciarServicio('Desayuno'));
+        document.getElementById('btn-home-almuerzo').addEventListener('click', () => app.iniciarServicio('Almuerzo'));
+        document.getElementById('btn-config-desayuno').addEventListener('click', () => app.irAAdmin('Desayuno'));
+        document.getElementById('btn-config-almuerzo').addEventListener('click', () => app.irAAdmin('Almuerzo'));
 
-        document.getElementById('btn-back').addEventListener('click',   () => app.volverAInicio());
-        document.getElementById('header-title').addEventListener('click',() => auth.resetearClave());
-        document.querySelector('.home-title').addEventListener('click',() => auth.resetearClave());
+        document.getElementById('btn-back').addEventListener('click', () => app.volverAInicio());
+        document.getElementById('header-title').addEventListener('click', () => auth.resetearClave());
+        document.querySelector('.home-title').addEventListener('click', () => auth.resetearClave());
         document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
 
-        document.getElementById('btn-salon').addEventListener('click',      () => pos.selectTipo('Salon'));
-        document.getElementById('btn-domicilio').addEventListener('click',  () => pos.selectTipo('Domicilio'));
-        document.getElementById('btn-para-llevar').addEventListener('click',() => pos.selectTipo('Para Llevar'));
-        document.getElementById('btn-submit').addEventListener('click',    () => pos.registrarPedido());
+        document.getElementById('btn-salon').addEventListener('click', () => pos.selectTipo('Salon'));
+        document.getElementById('btn-domicilio').addEventListener('click', () => pos.selectTipo('Domicilio'));
+        document.getElementById('btn-para-llevar').addEventListener('click', () => pos.selectTipo('Para Llevar'));
+        document.getElementById('btn-submit').addEventListener('click', () => pos.registrarPedido());
 
-        document.getElementById('btn-historial').addEventListener('click',         () => historial.toggle());
+        document.getElementById('btn-historial').addEventListener('click', () => historial.toggle());
         document.getElementById('btn-refresh-historial').addEventListener('click', () => historial.cargar());
 
-        document.getElementById('tab-platos').addEventListener('click',  () => admin.selectTab('platos'));
+        document.getElementById('tab-platos').addEventListener('click', () => admin.selectTab('platos'));
         document.getElementById('tab-bebidas').addEventListener('click', () => admin.selectTab('bebidas'));
-        document.getElementById('btn-save-menu').addEventListener('click',() => admin.guardarMenuDia());
+        document.getElementById('btn-save-menu').addEventListener('click', () => admin.guardarMenuDia());
     </script>
 </body>
+
 </html>

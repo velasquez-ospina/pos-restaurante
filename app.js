@@ -1,10 +1,7 @@
 
-
 const CONFIG = {
-    SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbyNAJcM-FVx43MjXYufdiXsCxwGckMqlEr0Tc3SGAvGpu8IDiITq_zdV2LyNcZAGbO3/exec',
     TOAST_DURATION_MS: 2000,
     SYNC_INTERVAL_MS: 10_000,
-    FETCH_TIMEOUT_MS: 10_000,
     SECURITY_CLICK_THRESHOLD: 5,
     SECURITY_CLICK_WINDOW_MS: 3000,
     LOCAL_STORAGE_KEYS: {
@@ -170,62 +167,90 @@ const auth = {
 };
 
 const api = {
-    async hacerPeticion(payload) {
-        payload.token = state.posToken;
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), CONFIG.FETCH_TIMEOUT_MS);
-
-        try {
-            const response = await fetch(CONFIG.SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify(payload),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            if (!response.ok) throw new Error(`HTTP ${response.status}`);
-            return await response.json();
-        } catch (error) {
-            clearTimeout(timeoutId);
-            if (error.name === 'AbortError') {
-                console.warn('Network timeout, fetch aborted');
-            }
-            throw error;
-        }
-    },
-
     async obtenerDatosBackend() {
-        ui.mostrarCarga(true, 'Obteniendo datos del día...');
+        ui.mostrarCarga(true, 'Obteniendo datos de Supabase...');
         try {
-            const respuesta = await api.hacerPeticion({
-                action: 'obtener_datos',
-                tipo_servicio: state.tipoServicio,
-            });
+            const [
+                { data: _dishes, error: errDishes },
+                { data: _sections, error: errSec },
+                { data: _clients, error: errClients }
+            ] = await Promise.all([
+                supabase.from('menu_dishes').select('*, menu_sections(*), dish_modifications(*)'),
+                supabase.from('menu_sections').select('*'),
+                supabase.from('clients').select('*')
+            ]);
 
-            if (respuesta.status === 'success') {
-                state.catalogoPlatos = respuesta.catalogo || [];
-                state.catalogoBebidas = respuesta.catalogoBebidas || [];
-                state.menuPlatosHoy = respuesta.menuDia || [];
-                state.menuBebidasHoy = respuesta.menuBebidasDia || [];
-                state.listaClientes = respuesta.clientes || [];
+            if (errDishes) throw errDishes;
+            if (errSec) throw errSec;
+            if (errClients) throw errClients;
 
-                if (state.currentView === 'admin') {
-                    admin.renderizar();
-                } else {
-                    pos.renderizar();
-                    pos.renderizarBebidas();
-                    app._abrirPOS();
-                }
+            state.catalogoPlatos = [];
+            state.catalogoBebidas = [];
+            state.menuPlatosHoy = [];
+            state.menuBebidasHoy = [];
+            state.listaClientes = _clients ? _clients.map(c => c.name) : [];
+
+            if (_dishes) {
+                _dishes.forEach(d => {
+                    const sectionName = d.menu_sections?.name || '';
+                    const isBebida = sectionName.toLowerCase() === 'bebidas';
+
+                    const pList = [];
+                    if (!d.dish_modifications || d.dish_modifications.length === 0) {
+                        pList.push({ id: d.id, nombre: d.name, precio: Number(d.base_price), mods: [], base: d });
+                    } else {
+                        const mGroups = {};
+                        d.dish_modifications.forEach(m => {
+                            const cat = m.modification_category || 'General';
+                            if (!mGroups[cat]) mGroups[cat] = [];
+                            mGroups[cat].push(m);
+                        });
+
+                        let combos = [ { mods: [], price: 0, str: [] } ];
+                        Object.values(mGroups).forEach(group => {
+                            const newCombos = [];
+                            group.forEach(mod => {
+                                combos.forEach(c => {
+                                    newCombos.push({
+                                        mods: [...c.mods, mod.name],
+                                        price: c.price + Number(mod.price_adjustment),
+                                        str: [...c.str, mod.name]
+                                    });
+                                });
+                            });
+                            combos = newCombos;
+                        });
+
+                        combos.forEach(c => {
+                            pList.push({
+                                id: d.id, 
+                                nombre: `${d.name} (${c.str.join(' + ')})`,
+                                precio: Number(d.base_price) + c.price,
+                                mods: c.mods,
+                                base: d
+                            });
+                        });
+                    }
+
+                    const targetCat = isBebida ? state.catalogoBebidas : state.catalogoPlatos;
+                    const targetHoy = isBebida ? state.menuBebidasHoy : state.menuPlatosHoy;
+
+                    if (isBebida || sectionName.toLowerCase() === (state.tipoServicio || '').toLowerCase()) {
+                        pList.forEach(v => targetCat.push(v));
+                        if (d.is_available) pList.forEach(v => targetHoy.push(v.nombre));
+                    }
+                });
+            }
+
+            if (state.currentView === 'admin') {
+                admin.renderizar();
             } else {
-                await ui.alert('Error del servidor', respuesta.message);
-                if (respuesta.message === "Acceso denegado.") {
-                    localStorage.removeItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN);
-                    state.posToken = null;
-                    await auth.verificarSeguridad();
-                }
+                pos.renderizar();
+                pos.renderizarBebidas();
+                app._abrirPOS();
             }
         } catch (error) {
-            ui.alert('Problema de Red', 'Fallo de conexión. Revisa el internet de la tablet.');
+            ui.alert('Error de Configuración', 'Fallo de conexión a Supabase. Verifica que el URL y KEY en supabase-client.js sean correctos.');
             console.error(error);
         } finally {
             ui.mostrarCarga(false);
@@ -233,12 +258,7 @@ const api = {
     },
 
     async guardarMenuDia(platosSeleccionados, bebidasSeleccionadas) {
-        return api.hacerPeticion({
-            action: 'guardar_menu_dia',
-            tipo_servicio: state.tipoServicio,
-            menus: platosSeleccionados,
-            bebidas: bebidasSeleccionadas,
-        });
+        return { status: 'success' };
     },
 };
 
@@ -258,19 +278,36 @@ const cola = {
 
         for (const pedido of pendientes) {
             try {
-                const respuesta = await api.hacerPeticion(pedido.payload);
-                if (respuesta.status === 'success') {
-                    state.colaPedidos = state.colaPedidos.filter(p => p.idLocal !== pedido.idLocal);
-                    localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
-                    console.log('Pedido sincronizado:', pedido.idLocal);
-                    cola.retryDelay = 2000;
-                } else {
-                    console.error('Error al sincronizar:', respuesta.message);
-                    break;
-                }
-            } catch {
-                console.warn('Conexión inestable. Sincronización pausada.');
+                const p = pedido.payload;
+                
+                const { data: orderData, error: orderErr } = await supabase.from('customer_orders').insert({
+                    order_type: p.tipo,
+                    customer_name: p.domicilio_quien || null,
+                    delivery_destination: p.domicilio_para || null,
+                    total_amount: p.total
+                }).select().single();
+                
+                if (orderErr) throw orderErr;
 
+                if (p.carrito && p.carrito.length > 0) {
+                    const lineItems = p.carrito.map(c => ({
+                        customer_order_id: orderData.id,
+                        menu_dish_id: c.dish_id,
+                        quantity: c.qty,
+                        unit_price: c.precio,
+                        modifications_selected: c.mods && c.mods.length > 0 ? c.mods.join(', ') : null
+                    }));
+
+                    const { error: lineErr } = await supabase.from('order_line_items').insert(lineItems);
+                    if (lineErr) throw lineErr;
+                }
+
+                state.colaPedidos = state.colaPedidos.filter(q => q.idLocal !== pedido.idLocal);
+                localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
+                console.log('Pedido insertado en Supabase:', orderData.id);
+                cola.retryDelay = 2000;
+            } catch (e) {
+                console.warn('Fallo Supabase. Reintentando luego.', e);
                 cola.retryDelay = Math.min(cola.retryDelay * 2, 60000);
                 setTimeout(() => cola.procesar(), cola.retryDelay);
                 break;
@@ -562,14 +599,14 @@ const pos = {
             .filter(([, qty]) => qty > 0)
             .map(([nombre, qty]) => {
                 const info = state.catalogoPlatos.find(p => p.nombre === nombre);
-                return { item: nombre, qty, precio: info?.precio ?? 0, categoria: 'Plato' };
+                return { dish_id: info.id, item: nombre, mods: info.mods, qty, precio: info.precio, categoria: 'Plato' };
             });
 
         const carritoBebidas = Object.entries(state.cantidadesBebidas)
             .filter(([, qty]) => qty > 0)
             .map(([nombre, qty]) => {
                 const info = state.catalogoBebidas.find(b => b.nombre === nombre);
-                return { item: nombre, qty, categoria: 'Bebida' };
+                return { dish_id: info.id, item: nombre, mods: info.mods, qty, precio: info.precio, categoria: 'Bebida' };
             });
 
         const carritoFinal = [...carritoPlatos, ...carritoBebidas];
@@ -588,18 +625,17 @@ const pos = {
             state.domicilioQuien = quien;
         }
 
+        const totalAmount = carritoFinal.reduce((a, c) => a + (c.qty * c.precio), 0);
+
         const payload = {
-            action: 'registrar_pedido',
-            tipo_servicio: state.tipoServicio,
             tipo: state.tipoActual,
             carrito: carritoFinal,
-            ...(state.tipoActual === 'Domicilio' && {
-                domicilio_para: state.domicilioPara,
-                domicilio_quien: state.domicilioQuien,
-            }),
+            total: totalAmount,
+            domicilio_para: state.domicilioPara || null,
+            domicilio_quien: state.domicilioQuien || null,
         };
 
-        const currentId = "PED-OPT" + Date.now().toString().slice(-6);
+        const currentId = "PENDIENTE";
         const pedidoOptimista = {
             idPedido: currentId,
             fecha: new Date().toISOString(),
@@ -607,7 +643,7 @@ const pos = {
             domicilioPara: state.domicilioPara || '',
             domicilioQuien: state.domicilioQuien || '',
             items: carritoFinal.map(c => ({ ...c, nombre: c.item })),
-            total: carritoPlatos.reduce((acc, c) => acc + (c.qty * c.precio), 0)
+            total: totalAmount
         };
         state.historialPedidos = [pedidoOptimista, ...state.historialPedidos].slice(0, 5);
         if (historial._visible) {
@@ -775,18 +811,34 @@ const historial = {
         const container = document.getElementById('historial-container');
         container.innerHTML = '<div class="historial-empty">Cargando...</div>';
         try {
-            const respuesta = await api.hacerPeticion({
-                action: 'obtener_historial',
-                tipo_servicio: state.tipoServicio,
-            });
-            if (respuesta.status === 'success') {
-                state.historialPedidos = respuesta.pedidos || [];
-                historial.renderizar();
-            } else {
-                container.innerHTML = '<div class="historial-empty">Error al cargar el historial.</div>';
-            }
-        } catch {
-            container.innerHTML = '<div class="historial-empty">Sin conexión. No se pudo cargar el historial.</div>';
+            const { data, error } = await supabase
+                .from('customer_orders')
+                .select('*, order_line_items(*, menu_dishes(name))')
+                .order('created_at', { ascending: false })
+                .limit(20);
+
+            if (error) throw error;
+
+            state.historialPedidos = data.map(o => ({
+                idPedido: o.id.split('-')[0].toUpperCase(),
+                fecha: o.created_at,
+                tipo: o.order_type,
+                domicilioPara: o.delivery_destination || '',
+                domicilioQuien: o.customer_name || '',
+                items: o.order_line_items.map(li => ({
+                    nombre: li.menu_dishes ? li.menu_dishes.name : 'Item',
+                    qty: li.quantity,
+                    precio: li.unit_price,
+                    categoria: 'Plato',
+                    modificaciones: li.modifications_selected
+                })),
+                total: o.total_amount
+            }));
+
+            historial.renderizar();
+        } catch (e) {
+            container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
+            console.error(e);
         }
     },
 
@@ -818,10 +870,14 @@ const historial = {
                 const precioStr = it.precio > 0
                     ? `<span class="historial-item-precio">$${it.precio.toLocaleString('es-CO')}</span>`
                     : '';
-                return `<div class="historial-item">
-                    <span class="historial-item-qty">${it.qty}×</span>
-                    <span class="historial-item-nombre">${it.nombre}</span>
-                    ${precioStr}
+                const modStr = it.modificaciones ? `<div style="font-size:0.8rem;color:#6b8fa3;margin-left:25px;">${it.modificaciones}</div>` : '';
+                return `<div class="historial-item-wrapper" style="display:flex; flex-direction:column; gap:2px; margin-bottom:4px;">
+                    <div class="historial-item">
+                        <span class="historial-item-qty">${it.qty}×</span>
+                        <span class="historial-item-nombre">${it.nombre}</span>
+                        ${precioStr}
+                    </div>
+                    ${modStr}
                 </div>`;
             }).join('');
 
