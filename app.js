@@ -257,8 +257,34 @@ const api = {
         }
     },
 
-    async guardarMenuDia(platosSeleccionados, bebidasSeleccionadas) {
-        return { status: 'success' };
+    async guardarMenuDia(platosIds, bebidasIds) {
+        const todosSeleccionados = new Set([...platosIds, ...bebidasIds]);
+        const uniqueBases = new Map();
+        
+        state.catalogoPlatos.forEach(p => uniqueBases.set(p.base.id, p.base.id));
+        state.catalogoBebidas.forEach(b => uniqueBases.set(b.base.id, b.base.id));
+
+        const updates = Array.from(uniqueBases.values()).map(id => ({
+            id: id,
+            is_available: todosSeleccionados.has(id)
+        }));
+
+        try {
+            await Promise.all(updates.map(u => 
+                supabaseClient.from('menu_dishes')
+                    .update({ is_available: u.is_available })
+                    .eq('id', u.id)
+            ));
+
+            state.cantidadesPlatos = {};
+            state.cantidadesBebidas = {};
+            
+            setTimeout(() => api.obtenerDatosBackend(), 100);
+            return { status: 'success' };
+        } catch (e) {
+            console.error('Update failed', e);
+            return { status: 'error', message: e.message };
+        }
     },
 };
 
@@ -727,14 +753,22 @@ const admin = {
     _renderizarPlatos() {
         const container = document.getElementById('admin-list-container');
         container.innerHTML = '';
-        state.catalogoPlatos.forEach((plato, index) => {
-            const checked = state.menuPlatosHoy.includes(plato.nombre) ? 'checked' : '';
+        
+        const uniqueBases = new Map();
+        state.catalogoPlatos.forEach(plato => {
+            if (!uniqueBases.has(plato.base.id)) {
+                uniqueBases.set(plato.base.id, plato.base);
+            }
+        });
+
+        Array.from(uniqueBases.values()).forEach((baseDish, index) => {
+            const checked = baseDish.is_available ? 'checked' : '';
             const item = document.createElement('div');
             item.className = 'admin-item';
             item.innerHTML = `
                 <input type="checkbox" class="admin-plato-check" id="chk-p-${index}"
-                       value="${plato.nombre}" ${checked}>
-                <label for="chk-p-${index}">${plato.nombre}</label>`;
+                       value="${baseDish.id}" ${checked}>
+                <label for="chk-p-${index}">${baseDish.name}</label>`;
             container.appendChild(item);
         });
     },
@@ -742,14 +776,22 @@ const admin = {
     _renderizarBebidas() {
         const container = document.getElementById('admin-bebidas-container');
         container.innerHTML = '';
-        state.catalogoBebidas.forEach((bebida, index) => {
-            const checked = state.menuBebidasHoy.includes(bebida.nombre) ? 'checked' : '';
+
+        const uniqueBases = new Map();
+        state.catalogoBebidas.forEach(bebida => {
+            if (!uniqueBases.has(bebida.base.id)) {
+                uniqueBases.set(bebida.base.id, bebida.base);
+            }
+        });
+
+        Array.from(uniqueBases.values()).forEach((baseDish, index) => {
+            const checked = baseDish.is_available ? 'checked' : '';
             const item = document.createElement('div');
             item.className = 'admin-item';
             item.innerHTML = `
                 <input type="checkbox" class="admin-bebida-check" id="chk-b-${index}"
-                       value="${bebida.nombre}" ${checked}>
-                <label for="chk-b-${index}">${bebida.nombre}</label>`;
+                       value="${baseDish.id}" ${checked}>
+                <label for="chk-b-${index}">${baseDish.name}</label>`;
             container.appendChild(item);
         });
     },
@@ -770,12 +812,8 @@ const admin = {
         try {
             const respuesta = await api.guardarMenuDia(platosSeleccionados, bebidasSeleccionadas);
             if (respuesta.status === 'success') {
-                state.menuPlatosHoy = platosSeleccionados;
-                state.menuBebidasHoy = bebidasSeleccionadas;
-                ui.mostrarToast('Menú actualizado ');
-                pos.renderizar();
-                pos.renderizarBebidas();
-                ui.toggleView();
+                ui.mostrarToast('Menú actualizado correctamente');
+                // The UI resets cleanly backwards via api.obtenerDatosBackend invocation
             } else {
                 ui.alert('Error al guardar', respuesta.message);
             }
