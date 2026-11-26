@@ -744,14 +744,16 @@ body {
 .user-info { font-weight: 600; color: #6b8fa3; }
 
 /* Cocina y estados de pedido */
-#cocina-view {
+#cocina-view,
+#domicilios-view {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
     overflow: hidden;
     gap: 12px;
 }
-#cocina-container {
+#cocina-container,
+#domicilios-container {
     flex-grow: 1;
     overflow-y: auto;
     display: flex;

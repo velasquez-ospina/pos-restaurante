@@ -11,14 +11,15 @@ const CONFIG = {
 };
 
 const ROLES = {
-    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true },
-    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false },
-    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true },
+    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true, domicilios: false },
+    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false, domicilios: false },
+    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true, domicilios: false },
+    domiciliario: { nombre: 'Domiciliario', servicio: false, configurar: false, cocina: false, domicilios: true },
 };
 
 const ESTADOS_PEDIDO = ['Pendiente', 'En preparación', 'Listo'];
 
-const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'admin-view'];
+const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'admin-view'];
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -99,6 +100,8 @@ const app = {
         document.getElementById('user-info').innerText = `${state.perfil.nombre} · ${rol.nombre}`;
         document.getElementById('home-buttons-servicio').style.display = rol.servicio ? 'flex' : 'none';
         document.getElementById('home-buttons-cocina').style.display = rol.cocina ? 'flex' : 'none';
+        document.getElementById('home-buttons-domicilios').style.display = rol.domicilios ? 'flex' : 'none';
+        document.getElementById('home-subtitle').style.display = rol.servicio ? 'block' : 'none';
         document.getElementById('home-config-links').style.display = rol.configurar ? 'flex' : 'none';
         app._mostrarVista('home-view');
     },
@@ -123,6 +126,7 @@ const app = {
         state.currentView = 'home';
         state.tipoActual = 'Salón';
         cocina.detener();
+        domicilios.detener();
         historial.reset();
         app.mostrarInicio();
     },
@@ -180,6 +184,7 @@ const auth = {
     _mostrarLogin() {
         state.perfil = null;
         cocina.detener();
+        domicilios.detener();
         document.getElementById('login-clave').value = '';
         app._mostrarVista('login-view');
     },
@@ -232,6 +237,8 @@ const auth = {
         cola.procesar();
         if (perfil.rol === 'cocina') {
             cocina.abrir();
+        } else if (perfil.rol === 'domiciliario') {
+            domicilios.abrir();
         } else {
             app.mostrarInicio();
         }
@@ -969,7 +976,7 @@ const pedidosDelDia = {
 
         const { data, error } = await supabaseClient
             .from('customer_orders')
-            .select('*, profiles(nombre), order_line_items(*, menu_dishes(name, menu_sections(name)))')
+            .select('*, creador:profiles!created_by(nombre), domiciliario:profiles!delivery_person_id(nombre), order_line_items(*, menu_dishes(name, menu_sections(name)))')
             .gte('created_at', inicio.toISOString())
             .order('created_at', { ascending: false })
             .limit(300);
@@ -982,7 +989,8 @@ const pedidosDelDia = {
             fecha: o.created_at,
             tipo: o.order_type,
             estado: o.order_status,
-            mesero: o.profiles?.nombre || '',
+            mesero: o.creador?.nombre || '',
+            domiciliario: o.domiciliario?.nombre || '',
             domicilioPara: o.delivery_destination || '',
             domicilioQuien: o.customer_name || '',
             items: o.order_line_items.map(li => ({
@@ -1041,9 +1049,10 @@ const pedidosDelDia = {
                </div>`
             : '';
 
-        const meseroHTML = pedido.mesero
-            ? `<div class="pedido-mesero">Registró: ${esc(pedido.mesero)}</div>`
-            : '';
+        const meseroHTML = [
+            pedido.mesero ? `Registró: ${esc(pedido.mesero)}` : '',
+            pedido.domiciliario ? `Domiciliario: ${esc(pedido.domiciliario)}` : '',
+        ].filter(Boolean).map(t => `<div class="pedido-mesero">${t}</div>`).join('');
 
         const totalStr = precios && pedido.total > 0
             ? `<div class="historial-total">Total: $${pedido.total.toLocaleString('es-CO')}</div>`
@@ -1154,6 +1163,47 @@ const cocina = {
         const pedido = cocina._pedidos.find(p => p.uuid === id);
         if (pedido) pedido.estado = estado;
         cocina.renderizar();
+    },
+};
+
+const domicilios = {
+    _timer: null,
+
+    abrir() {
+        if (!puede('domicilios')) return;
+        state.currentView = 'domicilios';
+        app._mostrarVista('domicilios-view');
+        document.getElementById('btn-historial').style.display = 'none';
+        document.getElementById('btn-toggle').style.display = 'none';
+        document.getElementById('header-title').innerText = 'Mis domicilios de hoy';
+
+        domicilios.detener();
+        domicilios.cargar();
+        domicilios._timer = setInterval(() => domicilios.cargar(true), CONFIG.COCINA_REFRESH_MS);
+    },
+
+    detener() {
+        if (domicilios._timer) clearInterval(domicilios._timer);
+        domicilios._timer = null;
+    },
+
+    async cargar(silencioso = false) {
+        const container = document.getElementById('domicilios-container');
+        if (!silencioso) container.innerHTML = '<div class="historial-empty">Cargando...</div>';
+        try {
+            // RLS solo devuelve los domicilios asignados a este usuario
+            const pedidos = await pedidosDelDia.obtener();
+            container.innerHTML = '';
+            if (pedidos.length === 0) {
+                container.innerHTML = '<div class="historial-empty">No tienes domicilios asignados.</div>';
+                return;
+            }
+            // Del mas antiguo al mas nuevo
+            pedidos.reverse().forEach(p => container.appendChild(pedidosDelDia.crearTarjeta(p, { precios: true })));
+        } catch (e) {
+            if (!silencioso) container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
+            console.error(e);
+        }
     },
 };
 

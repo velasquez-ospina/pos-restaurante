@@ -30,7 +30,7 @@
             <button class="btn-back" id="btn-logout">Cerrar sesión</button>
         </div>
         <div class="home-title">Registro de Pedidos</div>
-        <div class="home-subtitle">Que servicio vas a registrar?</div>
+        <div class="home-subtitle" id="home-subtitle">¿Qué servicio vas a registrar?</div>
         <div class="home-buttons" id="home-buttons-servicio">
             <button class="btn-home" id="btn-home-desayuno">
                 <span class="btn-home-label">Desayuno</span>
@@ -42,6 +42,11 @@
         <div class="home-buttons" id="home-buttons-cocina">
             <button class="btn-home" id="btn-home-cocina">
                 <span class="btn-home-label">Cocina</span>
+            </button>
+        </div>
+        <div class="home-buttons" id="home-buttons-domicilios">
+            <button class="btn-home" id="btn-home-domicilios">
+                <span class="btn-home-label">Mis domicilios</span>
             </button>
         </div>
         <div class="home-config-links" id="home-config-links">
@@ -113,6 +118,13 @@
         <button class="btn-action btn-action-secondary" id="btn-refresh-cocina">Actualizar</button>
     </div>
 
+    <div id="domicilios-view" style="display:none;">
+        <div id="domicilios-container">
+            <div class="historial-empty">Cargando domicilios...</div>
+        </div>
+        <button class="btn-action btn-action-secondary" id="btn-refresh-domicilios">Actualizar</button>
+    </div>
+
     <div id="admin-view" style="display:none;">
 
         <div class="admin-tabs">
@@ -159,6 +171,8 @@
 
         document.getElementById('btn-home-cocina').addEventListener('click', () => cocina.abrir());
         document.getElementById('btn-refresh-cocina').addEventListener('click', () => cocina.cargar());
+        document.getElementById('btn-home-domicilios').addEventListener('click', () => domicilios.abrir());
+        document.getElementById('btn-refresh-domicilios').addEventListener('click', () => domicilios.cargar());
 
         document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); auth.login(); });
         document.getElementById('btn-logout').addEventListener('click', () => auth.logout());
