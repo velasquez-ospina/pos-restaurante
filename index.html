@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>POS Restaurante</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -52,6 +53,7 @@
         <div class="home-config-links" id="home-config-links">
             <button class="btn-config-link" id="btn-config-desayuno">Configurar Desayuno</button>
             <button class="btn-config-link" id="btn-config-almuerzo">Configurar Almuerzo</button>
+            <button class="btn-config-link" id="btn-config-clientes">Ubicar clientes en el mapa</button>
         </div>
     </div>
 
@@ -125,6 +127,28 @@
         <button class="btn-action btn-action-secondary" id="btn-refresh-domicilios">Actualizar</button>
     </div>
 
+    <div id="clientes-view" style="display:none;">
+        <div class="clientes-layout">
+            <div id="clientes-mapa"></div>
+            <div class="clientes-lateral">
+                <div class="clientes-seleccion" id="clientes-seleccion">
+                    Elige un cliente de la lista y toca su ubicación en el mapa.
+                </div>
+                <div class="clientes-filtros">
+                    <input type="search" id="clientes-buscar" class="domicilio-input" placeholder="Buscar cliente..."
+                        autocomplete="off">
+                    <select id="clientes-filtro" class="domicilio-input">
+                        <option value="pendientes">Sin verificar</option>
+                        <option value="todos">Todos</option>
+                        <option value="verificados">Verificados</option>
+                    </select>
+                </div>
+                <div class="clientes-progreso" id="clientes-progreso"></div>
+                <div class="admin-list" id="clientes-lista"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="admin-view" style="display:none;">
 
         <div class="admin-tabs">
@@ -160,6 +184,7 @@
     <div class="toast" id="toast">Operacion exitosa</div>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
     <script src="supabase-client.js"></script>
 
     <script src="app.js"></script>
@@ -172,6 +197,9 @@
         document.getElementById('btn-home-cocina').addEventListener('click', () => cocina.abrir());
         document.getElementById('btn-refresh-cocina').addEventListener('click', () => cocina.cargar());
         document.getElementById('btn-home-domicilios').addEventListener('click', () => domicilios.abrir());
+        document.getElementById('btn-config-clientes').addEventListener('click', () => clientesMapa.abrir());
+        document.getElementById('clientes-buscar').addEventListener('input', () => clientesMapa.renderLista());
+        document.getElementById('clientes-filtro').addEventListener('change', () => clientesMapa.renderLista());
         document.getElementById('btn-refresh-domicilios').addEventListener('click', () => domicilios.cargar());
 
         document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); auth.login(); });

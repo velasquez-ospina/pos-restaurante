@@ -791,3 +791,99 @@ body {
 .btn-estado:disabled { background: #bdc3c7; cursor: wait; }
 
 .pedido-listo { opacity: 0.6; }
+
+/* Ubicacion de clientes (mapa) */
+#clientes-view {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    min-height: 0;
+}
+
+.clientes-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 3fr) minmax(280px, 2fr);
+    gap: 14px;
+    flex-grow: 1;
+    min-height: 0;
+    height: calc(100vh - 110px);
+}
+
+#clientes-mapa {
+    border-radius: 18px;
+    min-height: 300px;
+    box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08);
+    z-index: 0;
+}
+
+.clientes-lateral {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    min-width: 0;
+}
+.clientes-lateral .admin-list { margin-bottom: 0; padding: 4px 12px; }
+
+.clientes-seleccion {
+    background: var(--pure-white);
+    border: 2px solid var(--aqua-accent);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    color: #6b8fa3;
+}
+.cs-nombre { font-size: 1.3rem; font-weight: 700; color: var(--ocean-deep); }
+.cs-info { font-size: 0.9rem; }
+.cs-nota { font-size: 0.85rem; background: #fef3e0; color: #c0720b; border-radius: 8px; padding: 6px 10px; }
+.cs-botones { display: flex; gap: 8px; }
+.cs-botones .btn-estado { flex: 2; }
+.cs-botones .btn-cancel { flex: 1; }
+
+.clientes-filtros { display: flex; gap: 8px; }
+.clientes-filtros input { flex: 2; min-width: 0; }
+.clientes-filtros select { flex: 1; min-width: 0; }
+.clientes-progreso { font-size: 0.9rem; font-weight: 600; color: #6b8fa3; }
+
+.cliente-item {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    padding: 12px 6px;
+    border-bottom: 1px solid #eef6f8;
+    cursor: pointer;
+    border-radius: 8px;
+}
+.cliente-item:last-child { border-bottom: none; }
+.cliente-item.activo { background: #eef6f8; }
+.cliente-nombre { font-size: 1.05rem; font-weight: 600; flex-grow: 1; }
+.cliente-dir { font-size: 0.8rem; color: #6b8fa3; width: 100%; padding-left: 22px; }
+
+.cliente-punto { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+.cliente-verificado    { background: #1a7a47; }
+.cliente-sin-verificar { background: #e67e22; }
+.cliente-sin-ubicacion { background: #cfdfe6; }
+
+.mapa-local {
+    background: var(--ocean-deep);
+    color: white;
+    border: 3px solid white;
+    border-radius: 50%;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 800px) {
+    .clientes-layout {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: 45vh auto;
+        height: auto;
+    }
+    .clientes-lateral .admin-list { max-height: 50vh; }
+}

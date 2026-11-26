@@ -4,6 +4,8 @@ const CONFIG = {
     SYNC_INTERVAL_MS: 10_000,
     COCINA_REFRESH_MS: 15_000,
     DOMINIO_USUARIOS: 'megadelicias.local',
+    // Cra. 60 #45A-21 (aproximado desde OpenStreetMap; ajustar si hace falta)
+    LOCAL: { lat: 6.2490, lng: -75.5779 },
     LOCAL_STORAGE_KEYS: {
         COLA: 'pos_cola_pedidos',
         PERFIL: 'pos_perfil',
@@ -19,7 +21,7 @@ const ROLES = {
 
 const ESTADOS_PEDIDO = ['Pendiente', 'En preparación', 'Listo'];
 
-const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'admin-view'];
+const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'clientes-view', 'admin-view'];
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,6 +32,14 @@ const nuevoUUID = () => crypto.randomUUID
     ? crypto.randomUUID()
     : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
         (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+
+// Distancia en linea recta (metros)
+const distanciaMetros = (a, b) => {
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+};
 
 const puede = (permiso) => !!(state.perfil && ROLES[state.perfil.rol]?.[permiso]);
 
@@ -1204,6 +1214,253 @@ const domicilios = {
             if (!silencioso) container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
             console.error(e);
         }
+    },
+};
+
+const clientesMapa = {
+    _mapa: null,
+    _capaClientes: null,
+    _marcadorEdicion: null,
+    _clientes: [],
+    _seleccionado: null,
+    _pendiente: null,
+
+    async abrir() {
+        if (!puede('configurar')) return;
+        state.currentView = 'clientes';
+        app._mostrarVista('clientes-view');
+        document.getElementById('btn-historial').style.display = 'none';
+        document.getElementById('btn-toggle').style.display = 'none';
+        document.getElementById('header-title').innerText = 'Ubicación de clientes';
+
+        clientesMapa._initMapa();
+        await clientesMapa.cargar();
+    },
+
+    _initMapa() {
+        if (clientesMapa._mapa) {
+            setTimeout(() => clientesMapa._mapa.invalidateSize(), 0);
+            return;
+        }
+        if (!window.L) {
+            document.getElementById('clientes-mapa').innerHTML =
+                '<div class="historial-empty">No se pudo cargar el mapa. Verifica tu conexión.</div>';
+            return;
+        }
+        const mapa = L.map('clientes-mapa').setView([CONFIG.LOCAL.lat, CONFIG.LOCAL.lng], 17);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap',
+        }).addTo(mapa);
+
+        L.marker([CONFIG.LOCAL.lat, CONFIG.LOCAL.lng], {
+            icon: L.divIcon({ className: 'mapa-local', html: 'M', iconSize: [30, 30] }),
+            interactive: false,
+        }).addTo(mapa);
+
+        clientesMapa._capaClientes = L.layerGroup().addTo(mapa);
+        mapa.on('click', (e) => clientesMapa._ubicar(e.latlng));
+        clientesMapa._mapa = mapa;
+        setTimeout(() => mapa.invalidateSize(), 0);
+    },
+
+    async cargar() {
+        const { data, error } = await supabaseClient
+            .from('clients')
+            .select('id, name, direccion, lat, lng, ubicacion_fuente, ubicacion_nota, ubicacion_verificada')
+            .order('name');
+        if (error) {
+            ui.alert('Error', 'No se pudieron cargar los clientes.');
+            console.error(error);
+            return;
+        }
+        clientesMapa._clientes = data;
+        clientesMapa.renderLista();
+        clientesMapa._renderMarcadores();
+    },
+
+    _estado(c) {
+        if (c.lat != null && c.ubicacion_verificada) return 'verificado';
+        if (c.lat != null) return 'sin-verificar';
+        return 'sin-ubicacion';
+    },
+
+    renderLista() {
+        const texto = document.getElementById('clientes-buscar').value.trim().toLowerCase();
+        const filtro = document.getElementById('clientes-filtro').value;
+        const lista = document.getElementById('clientes-lista');
+
+        const total = clientesMapa._clientes.length;
+        const verificados = clientesMapa._clientes.filter(c => clientesMapa._estado(c) === 'verificado').length;
+        document.getElementById('clientes-progreso').innerText = `${verificados} de ${total} clientes verificados`;
+
+        const visibles = clientesMapa._clientes.filter(c => {
+            if (texto && !c.name.toLowerCase().includes(texto)) return false;
+            if (filtro === 'pendientes') return clientesMapa._estado(c) !== 'verificado';
+            if (filtro === 'verificados') return clientesMapa._estado(c) === 'verificado';
+            return true;
+        });
+
+        lista.innerHTML = visibles.length === 0
+            ? '<div class="historial-empty">No hay clientes con ese filtro.</div>'
+            : visibles.map(c => `
+                <div class="cliente-item ${c.id === clientesMapa._seleccionado?.id ? 'activo' : ''}" data-id="${esc(c.id)}">
+                    <span class="cliente-punto cliente-${clientesMapa._estado(c)}"></span>
+                    <span class="cliente-nombre">${esc(c.name)}</span>
+                    ${c.direccion ? `<span class="cliente-dir">${esc(c.direccion)}</span>` : ''}
+                </div>`).join('');
+
+        lista.querySelectorAll('.cliente-item').forEach(el => {
+            el.addEventListener('click', () => clientesMapa.seleccionar(el.dataset.id));
+        });
+    },
+
+    _renderMarcadores() {
+        if (!clientesMapa._capaClientes) return;
+        clientesMapa._capaClientes.clearLayers();
+        clientesMapa._clientes.filter(c => c.lat != null).forEach(c => {
+            if (c.id === clientesMapa._seleccionado?.id) return;
+            L.circleMarker([c.lat, c.lng], {
+                radius: 6,
+                weight: 1,
+                color: '#ffffff',
+                fillOpacity: 0.9,
+                fillColor: c.ubicacion_verificada ? '#1a7a47' : '#e67e22',
+            })
+                .bindTooltip(c.name)
+                .on('click', (e) => { L.DomEvent.stopPropagation(e); clientesMapa.seleccionar(c.id); })
+                .addTo(clientesMapa._capaClientes);
+        });
+    },
+
+    seleccionar(id) {
+        const c = clientesMapa._clientes.find(x => x.id === id);
+        if (!c) return;
+        clientesMapa._seleccionado = c;
+        clientesMapa._pendiente = c.lat != null ? { lat: c.lat, lng: c.lng } : null;
+
+        if (clientesMapa._marcadorEdicion) {
+            clientesMapa._marcadorEdicion.remove();
+            clientesMapa._marcadorEdicion = null;
+        }
+        if (clientesMapa._pendiente && clientesMapa._mapa) {
+            clientesMapa._ponerMarcador(clientesMapa._pendiente);
+            clientesMapa._mapa.setView([c.lat, c.lng], Math.max(clientesMapa._mapa.getZoom(), 17));
+        }
+
+        clientesMapa._renderPanel();
+        clientesMapa._renderMarcadores();
+        clientesMapa.renderLista();
+    },
+
+    _ponerMarcador(pos) {
+        if (!clientesMapa._marcadorEdicion) {
+            clientesMapa._marcadorEdicion = L.marker([pos.lat, pos.lng], { draggable: true }).addTo(clientesMapa._mapa);
+            clientesMapa._marcadorEdicion.on('dragend', (e) => {
+                const ll = e.target.getLatLng();
+                clientesMapa._pendiente = { lat: ll.lat, lng: ll.lng };
+                clientesMapa._renderPanel();
+            });
+        } else {
+            clientesMapa._marcadorEdicion.setLatLng([pos.lat, pos.lng]);
+        }
+    },
+
+    _ubicar(latlng) {
+        if (!clientesMapa._seleccionado) {
+            ui.mostrarToast('Primero elige un cliente de la lista');
+            return;
+        }
+        clientesMapa._pendiente = { lat: latlng.lat, lng: latlng.lng };
+        clientesMapa._ponerMarcador(clientesMapa._pendiente);
+        clientesMapa._renderPanel();
+    },
+
+    _renderPanel() {
+        const panel = document.getElementById('clientes-seleccion');
+        const c = clientesMapa._seleccionado;
+        if (!c) {
+            panel.innerHTML = 'Elige un cliente de la lista y toca su ubicación en el mapa.';
+            return;
+        }
+        const p = clientesMapa._pendiente;
+        const distancia = p ? `A ${Math.round(distanciaMetros(CONFIG.LOCAL, p))} m del local (línea recta)` : 'Toca el mapa donde queda este cliente.';
+        const estado = c.ubicacion_verificada ? 'Verificada' : (c.lat != null ? `Sin verificar (${esc(c.ubicacion_fuente || '')})` : 'Sin ubicación');
+
+        // Conservar lo que el usuario ya escribio al re-renderizar
+        const dirActual = document.getElementById('cs-direccion')?.dataset.id === c.id
+            ? document.getElementById('cs-direccion').value
+            : (c.direccion || '');
+
+        panel.innerHTML = `
+            <div class="cs-nombre">${esc(c.name)}</div>
+            <div class="cs-info">${esc(distancia)} · ${estado}</div>
+            ${c.ubicacion_nota ? `<div class="cs-nota">${esc(c.ubicacion_nota)}</div>` : ''}
+            <input type="text" id="cs-direccion" class="domicilio-input" data-id="${esc(c.id)}"
+                placeholder="Dirección (opcional, ej: Cra 58 # 45-20)" value="${esc(dirActual)}">
+            <div class="cs-botones">
+                <button class="btn-estado" id="cs-guardar" ${p ? '' : 'disabled'}>Guardar y siguiente</button>
+                ${c.lat != null ? '<button class="btn-cancel" id="cs-quitar">Quitar ubicación</button>' : ''}
+            </div>`;
+
+        document.getElementById('cs-guardar').addEventListener('click', () => clientesMapa.guardar());
+        document.getElementById('cs-quitar')?.addEventListener('click', () => clientesMapa.quitar());
+    },
+
+    async guardar() {
+        const c = clientesMapa._seleccionado;
+        const p = clientesMapa._pendiente;
+        if (!c || !p) return;
+        const direccion = document.getElementById('cs-direccion').value.trim() || null;
+
+        const cambios = {
+            lat: p.lat,
+            lng: p.lng,
+            direccion,
+            ubicacion_fuente: 'manual',
+            ubicacion_verificada: true,
+            updated_at: new Date().toISOString(),
+        };
+        const { error } = await supabaseClient.from('clients').update(cambios).eq('id', c.id);
+        if (error) {
+            ui.alert('Error', 'No se pudo guardar la ubicación.');
+            console.error(error);
+            return;
+        }
+        Object.assign(c, cambios);
+        ui.mostrarToast('Ubicación guardada');
+
+        // Siguiente cliente sin verificar (en orden alfabetico)
+        const idx = clientesMapa._clientes.indexOf(c);
+        const siguiente = [...clientesMapa._clientes.slice(idx + 1), ...clientesMapa._clientes.slice(0, idx)]
+            .find(x => clientesMapa._estado(x) !== 'verificado');
+        if (siguiente) {
+            clientesMapa.seleccionar(siguiente.id);
+        } else {
+            clientesMapa._seleccionado = null;
+            clientesMapa._pendiente = null;
+            clientesMapa._marcadorEdicion?.remove();
+            clientesMapa._marcadorEdicion = null;
+            clientesMapa._renderPanel();
+            clientesMapa._renderMarcadores();
+            clientesMapa.renderLista();
+        }
+    },
+
+    async quitar() {
+        const c = clientesMapa._seleccionado;
+        if (!c) return;
+        const ok = await ui.confirmar('Quitar ubicación', `¿Quitar la ubicación de "${c.name}"?`);
+        if (!ok) return;
+        const cambios = { lat: null, lng: null, ubicacion_verificada: false, ubicacion_fuente: null, updated_at: new Date().toISOString() };
+        const { error } = await supabaseClient.from('clients').update(cambios).eq('id', c.id);
+        if (error) {
+            ui.alert('Error', 'No se pudo quitar la ubicación.');
+            console.error(error);
+            return;
+        }
+        Object.assign(c, cambios);
+        clientesMapa.seleccionar(c.id);
     },
 };
 
