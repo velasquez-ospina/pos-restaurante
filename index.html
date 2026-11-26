@@ -45,6 +45,11 @@
                 <span class="btn-home-label">Cocina</span>
             </button>
         </div>
+        <div class="home-buttons" id="home-buttons-despacho">
+            <button class="btn-home" id="btn-home-despacho">
+                <span class="btn-home-label">Despacho</span>
+            </button>
+        </div>
         <div class="home-buttons" id="home-buttons-domicilios">
             <button class="btn-home" id="btn-home-domicilios">
                 <span class="btn-home-label">Mis domicilios</span>
@@ -127,6 +132,16 @@
         <button class="btn-action btn-action-secondary" id="btn-refresh-domicilios">Actualizar</button>
     </div>
 
+    <div id="despacho-view" style="display:none;">
+        <div class="clientes-layout">
+            <div id="despacho-mapa"></div>
+            <div class="clientes-lateral">
+                <div class="despacho-resumen" id="despacho-resumen"></div>
+                <div class="despacho-panel" id="despacho-panel"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="clientes-view" style="display:none;">
         <div class="clientes-layout">
             <div id="clientes-mapa"></div>
@@ -136,7 +151,7 @@
                 </div>
                 <div class="clientes-filtros">
                     <input type="search" id="clientes-buscar" class="domicilio-input" placeholder="Buscar cliente..."
-                        autocomplete="off">
+                        autocomplete="off" name="buscar-cliente-mapa">
                     <select id="clientes-filtro" class="domicilio-input">
                         <option value="pendientes">Sin verificar</option>
                         <option value="todos">Todos</option>
@@ -188,6 +203,7 @@
     <script src="supabase-client.js"></script>
 
     <script src="app.js"></script>
+    <script src="despacho.js"></script>
     <script>
         document.getElementById('btn-home-desayuno').addEventListener('click', () => app.iniciarServicio('Desayuno'));
         document.getElementById('btn-home-almuerzo').addEventListener('click', () => app.iniciarServicio('Almuerzo'));
@@ -198,6 +214,7 @@
         document.getElementById('btn-refresh-cocina').addEventListener('click', () => cocina.cargar());
         document.getElementById('btn-home-domicilios').addEventListener('click', () => domicilios.abrir());
         document.getElementById('btn-config-clientes').addEventListener('click', () => clientesMapa.abrir());
+        document.getElementById('btn-home-despacho').addEventListener('click', () => despacho.abrir());
         document.getElementById('clientes-buscar').addEventListener('input', () => clientesMapa.renderLista());
         document.getElementById('clientes-filtro').addEventListener('change', () => clientesMapa.renderLista());
         document.getElementById('btn-refresh-domicilios').addEventListener('click', () => domicilios.cargar());

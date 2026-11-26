@@ -3,6 +3,7 @@ const CONFIG = {
     TOAST_DURATION_MS: 2000,
     SYNC_INTERVAL_MS: 10_000,
     COCINA_REFRESH_MS: 15_000,
+    DESPACHO_REFRESH_MS: 20_000,
     DOMINIO_USUARIOS: 'megadelicias.local',
     // Cra. 60 #45A-21 (aproximado desde OpenStreetMap; ajustar si hace falta)
     LOCAL: { lat: 6.2490, lng: -75.5779 },
@@ -13,15 +14,15 @@ const CONFIG = {
 };
 
 const ROLES = {
-    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true, domicilios: false },
-    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false, domicilios: false },
-    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true, domicilios: false },
-    domiciliario: { nombre: 'Domiciliario', servicio: false, configurar: false, cocina: false, domicilios: true },
+    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true, domicilios: false, despacho: true },
+    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false, domicilios: false, despacho: false },
+    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true, domicilios: false, despacho: false },
+    domiciliario: { nombre: 'Domiciliario', servicio: false, configurar: false, cocina: false, domicilios: true, despacho: false },
 };
 
-const ESTADOS_PEDIDO = ['Pendiente', 'En preparación', 'Listo'];
+const ESTADOS_COCINA = ['Pendiente', 'En preparación', 'Listo'];
 
-const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'clientes-view', 'admin-view'];
+const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'despacho-view', 'clientes-view', 'admin-view'];
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -111,6 +112,7 @@ const app = {
         document.getElementById('home-buttons-servicio').style.display = rol.servicio ? 'flex' : 'none';
         document.getElementById('home-buttons-cocina').style.display = rol.cocina ? 'flex' : 'none';
         document.getElementById('home-buttons-domicilios').style.display = rol.domicilios ? 'flex' : 'none';
+        document.getElementById('home-buttons-despacho').style.display = rol.despacho ? 'flex' : 'none';
         document.getElementById('home-subtitle').style.display = rol.servicio ? 'block' : 'none';
         document.getElementById('home-config-links').style.display = rol.configurar ? 'flex' : 'none';
         app._mostrarVista('home-view');
@@ -137,6 +139,7 @@ const app = {
         state.tipoActual = 'Salón';
         cocina.detener();
         domicilios.detener();
+        despacho.detener();
         historial.reset();
         app.mostrarInicio();
     },
@@ -195,6 +198,7 @@ const auth = {
         state.perfil = null;
         cocina.detener();
         domicilios.detener();
+        despacho.detener();
         document.getElementById('login-clave').value = '';
         app._mostrarVista('login-view');
     },
@@ -986,7 +990,7 @@ const pedidosDelDia = {
 
         const { data, error } = await supabaseClient
             .from('customer_orders')
-            .select('*, creador:profiles!created_by(nombre), domiciliario:profiles!delivery_person_id(nombre), order_line_items(*, menu_dishes(name, menu_sections(name)))')
+            .select('*, creador:profiles!created_by(nombre), domiciliario:profiles!delivery_person_id(nombre), cliente:clients(id, name, lat, lng), order_line_items(*, menu_dishes(name, ocupa_bandeja, menu_sections(name)))')
             .gte('created_at', inicio.toISOString())
             .order('created_at', { ascending: false })
             .limit(300);
@@ -1011,6 +1015,17 @@ const pedidosDelDia = {
                 modificaciones: li.modifications_selected,
             })),
             total: Number(o.total_amount),
+            // Datos para despacho de domicilios
+            destino: o.delivery_destination || o.cliente?.name || 'Sin destino',
+            deliveryPersonId: o.delivery_person_id,
+            ordenRuta: o.orden_ruta,
+            pos: o.cliente && o.cliente.lat != null ? { lat: o.cliente.lat, lng: o.cliente.lng } : null,
+            creadoMs: Date.parse(o.created_at),
+            listoMs: o.listo_at ? Date.parse(o.listo_at) : null,
+            enCaminoMs: o.en_camino_at ? Date.parse(o.en_camino_at) : null,
+            entregadoMs: o.entregado_at ? Date.parse(o.entregado_at) : null,
+            unidades: o.order_line_items.reduce((n, li) =>
+                n + (li.menu_dishes && li.menu_dishes.ocupa_bandeja === false ? 0 : li.quantity), 0),
         }));
     },
 
@@ -1125,15 +1140,15 @@ const cocina = {
         container.innerHTML = '';
 
         // Activos del mas antiguo al mas nuevo; listos al final
-        const activos = cocina._pedidos.filter(p => p.estado !== 'Listo').reverse();
-        const listos = cocina._pedidos.filter(p => p.estado === 'Listo');
+        const activos = cocina._pedidos.filter(p => ['Pendiente', 'En preparación'].includes(p.estado)).reverse();
+        const listos = cocina._pedidos.filter(p => !['Pendiente', 'En preparación'].includes(p.estado));
 
         if (activos.length === 0) {
             container.innerHTML = '<div class="historial-empty">No hay pedidos pendientes.</div>';
         }
 
         activos.forEach(p => {
-            const siguiente = ESTADOS_PEDIDO[ESTADOS_PEDIDO.indexOf(p.estado) + 1];
+            const siguiente = ESTADOS_COCINA[ESTADOS_COCINA.indexOf(p.estado) + 1];
             const etiqueta = siguiente === 'Listo' ? 'Marcar listo' : 'Empezar preparación';
             const acciones = siguiente
                 ? `<button class="btn-estado" data-id="${esc(p.uuid)}" data-estado="${esc(siguiente)}">${etiqueta}</button>`
@@ -1178,6 +1193,8 @@ const cocina = {
 
 const domicilios = {
     _timer: null,
+    _estado: null,
+    _pedidos: [],
 
     abrir() {
         if (!puede('domicilios')) return;
@@ -1185,7 +1202,7 @@ const domicilios = {
         app._mostrarVista('domicilios-view');
         document.getElementById('btn-historial').style.display = 'none';
         document.getElementById('btn-toggle').style.display = 'none';
-        document.getElementById('header-title').innerText = 'Mis domicilios de hoy';
+        document.getElementById('header-title').innerText = 'Mis domicilios';
 
         domicilios.detener();
         domicilios.cargar();
@@ -1202,18 +1219,425 @@ const domicilios = {
         if (!silencioso) container.innerHTML = '<div class="historial-empty">Cargando...</div>';
         try {
             // RLS solo devuelve los domicilios asignados a este usuario
-            const pedidos = await pedidosDelDia.obtener();
-            container.innerHTML = '';
-            if (pedidos.length === 0) {
-                container.innerHTML = '<div class="historial-empty">No tienes domicilios asignados.</div>';
-                return;
-            }
-            // Del mas antiguo al mas nuevo
-            pedidos.reverse().forEach(p => container.appendChild(pedidosDelDia.crearTarjeta(p, { precios: true })));
+            const [pedidos, { data: estado, error }] = await Promise.all([
+                pedidosDelDia.obtener(),
+                supabaseClient.from('domiciliarios_estado').select('disponible, bandeja')
+                    .eq('profile_id', state.perfil.id).maybeSingle(),
+            ]);
+            if (error) throw error;
+            domicilios._pedidos = pedidos;
+            domicilios._estado = estado || { disponible: false, bandeja: null };
+            domicilios.renderizar();
         } catch (e) {
             if (!silencioso) container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
             console.error(e);
         }
+    },
+
+    renderizar() {
+        const container = document.getElementById('domicilios-container');
+        container.innerHTML = '';
+
+        const tarjetaEstado = document.createElement('div');
+        tarjetaEstado.className = 'dom-estado-card';
+        tarjetaEstado.innerHTML = `
+            <div class="dom-estado-titulo">Mi estado</div>
+            ${disponibilidad.selector(domicilios._estado, 'dom-mi-estado')}`;
+        container.appendChild(tarjetaEstado);
+        tarjetaEstado.querySelector('select').addEventListener('change', async (e) => {
+            await disponibilidad.guardar(state.perfil.id, e.target.value);
+            domicilios.cargar(true);
+        });
+
+        const pendientes = domicilios._pedidos
+            .filter(p => p.estado !== 'Entregado')
+            .sort((a, b) => (a.ordenRuta ?? 99) - (b.ordenRuta ?? 99) || a.creadoMs - b.creadoMs);
+        const entregados = domicilios._pedidos.filter(p => p.estado === 'Entregado');
+
+        const listos = pendientes.filter(p => p.estado === 'Listo');
+        if (listos.length > 0) {
+            const btn = document.createElement('button');
+            btn.className = 'btn-action';
+            btn.innerText = `SALIR A RUTA (${listos.length} pedido${listos.length > 1 ? 's' : ''})`;
+            btn.addEventListener('click', () => domicilios.cambiarEstado(listos.map(p => p.uuid), 'En camino', btn));
+            container.appendChild(btn);
+        }
+
+        if (pendientes.length === 0) {
+            container.insertAdjacentHTML('beforeend', '<div class="historial-empty">No tienes domicilios pendientes.</div>');
+        }
+
+        pendientes.forEach(p => {
+            let acciones = '';
+            if (p.estado === 'En camino') {
+                acciones = `<button class="btn-estado" data-id="${esc(p.uuid)}">Marcar entregado</button>`;
+            } else if (p.estado !== 'Listo') {
+                acciones = '<div class="dom-espera">Esperando que cocina lo marque listo</div>';
+            }
+            const card = pedidosDelDia.crearTarjeta(p, { precios: true, acciones });
+            if (p.ordenRuta) card.insertAdjacentHTML('afterbegin', `<div class="ruta-numero">${esc(p.ordenRuta)}</div>`);
+            card.classList.add('dom-card');
+            container.appendChild(card);
+        });
+
+        container.querySelectorAll('.btn-estado[data-id]').forEach(btn => {
+            btn.addEventListener('click', () => domicilios.cambiarEstado([btn.dataset.id], 'Entregado', btn));
+        });
+
+        if (entregados.length > 0) {
+            const titulo = document.createElement('div');
+            titulo.className = 'section-label';
+            titulo.innerText = `Entregados hoy (${entregados.length})`;
+            container.appendChild(titulo);
+            entregados.forEach(p => {
+                const card = pedidosDelDia.crearTarjeta(p, { precios: true });
+                card.classList.add('pedido-listo');
+                container.appendChild(card);
+            });
+        }
+    },
+
+    async cambiarEstado(ids, estado, btn) {
+        btn.disabled = true;
+        const { error } = await supabaseClient
+            .from('customer_orders')
+            .update({ order_status: estado })
+            .in('id', ids);
+        if (error) {
+            btn.disabled = false;
+            ui.alert('Error', 'No se pudo actualizar el pedido. Verifica tu conexión.');
+            console.error(error);
+            return;
+        }
+        domicilios.cargar(true);
+    },
+};
+
+// Selector compartido: el domiciliario (o el admin por el) marca disponibilidad y bandeja
+const disponibilidad = {
+    selector(estado, id) {
+        const valor = estado?.disponible ? estado.bandeja : 'no';
+        const opt = (v, txt) => `<option value="${v}" ${valor === v ? 'selected' : ''}>${txt}</option>`;
+        return `<select class="domicilio-input dom-selector" id="${id}">
+            ${opt('no', 'No disponible')}
+            ${opt('grande', `Disponible · bandeja grande (${DESPACHO_CFG.CAPACIDAD.grande})`)}
+            ${opt('mediana', `Disponible · bandeja mediana (${DESPACHO_CFG.CAPACIDAD.mediana})`)}
+        </select>`;
+    },
+
+    async guardar(profileId, valor) {
+        const fila = {
+            profile_id: profileId,
+            disponible: valor !== 'no',
+            bandeja: valor === 'no' ? null : valor,
+            actualizado_at: new Date().toISOString(),
+        };
+        const { error } = await supabaseClient.from('domiciliarios_estado').upsert(fila, { onConflict: 'profile_id' });
+        if (error) {
+            ui.alert('Error', 'No se pudo actualizar la disponibilidad.');
+            console.error(error);
+            return false;
+        }
+        ui.mostrarToast(fila.disponible ? 'Disponible' : 'No disponible');
+        return true;
+    },
+};
+
+const COLORES_RUTA = ['#005b96', '#c0392b', '#1a7a47', '#8e44ad', '#d35400', '#16a085'];
+
+const despacho = {
+    _timer: null,
+    _mapa: null,
+    _capa: null,
+    _datos: null,
+    _plan: null,
+    _ocupado: false,
+
+    abrir() {
+        if (!puede('despacho')) return;
+        state.currentView = 'despacho';
+        app._mostrarVista('despacho-view');
+        document.getElementById('btn-historial').style.display = 'none';
+        document.getElementById('btn-toggle').style.display = 'none';
+        document.getElementById('header-title').innerText = 'Despacho de domicilios';
+
+        despacho._initMapa();
+        despacho.detener();
+        despacho.cargar();
+        despacho._timer = setInterval(() => { if (!despacho._ocupado) despacho.cargar(true); }, CONFIG.DESPACHO_REFRESH_MS);
+    },
+
+    detener() {
+        if (despacho._timer) clearInterval(despacho._timer);
+        despacho._timer = null;
+    },
+
+    _initMapa() {
+        if (despacho._mapa) {
+            setTimeout(() => despacho._mapa.invalidateSize(), 0);
+            return;
+        }
+        if (!window.L) return;
+        const mapa = L.map('despacho-mapa').setView([CONFIG.LOCAL.lat, CONFIG.LOCAL.lng], 16);
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '&copy; OpenStreetMap' }).addTo(mapa);
+        L.marker([CONFIG.LOCAL.lat, CONFIG.LOCAL.lng], {
+            icon: L.divIcon({ className: 'mapa-local', html: 'M', iconSize: [30, 30] }),
+            interactive: false,
+        }).addTo(mapa);
+        despacho._capa = L.layerGroup().addTo(mapa);
+        despacho._mapa = mapa;
+        setTimeout(() => mapa.invalidateSize(), 0);
+    },
+
+    async cargar(silencioso = false) {
+        const panel = document.getElementById('despacho-panel');
+        if (!silencioso) panel.innerHTML = '<div class="historial-empty">Cargando...</div>';
+        try {
+            const [pedidos, { data: doms, error }] = await Promise.all([
+                pedidosDelDia.obtener(),
+                supabaseClient.from('profiles')
+                    .select('id, nombre, domiciliarios_estado(disponible, bandeja, actualizado_at)')
+                    .eq('rol', 'domiciliario').eq('activo', true).order('nombre'),
+            ]);
+            if (error) throw error;
+            despacho._datos = { pedidos, doms };
+            despacho._calcular();
+            despacho._render();
+        } catch (e) {
+            if (!silencioso) panel.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
+            console.error(e);
+        }
+    },
+
+    // Mediana del tiempo de cocina de hoy (pedido -> listo); si hay pocos datos, el valor por defecto
+    _estimarPrepMin(pedidos) {
+        const t = pedidos.filter(p => p.listoMs).map(p => (p.listoMs - p.creadoMs) / 60000)
+            .filter(x => x > 0 && x < 120).sort((a, b) => a - b);
+        return t.length >= 3 ? Math.round(t[Math.floor(t.length / 2)]) : DESPACHO_CFG.PREP_MIN_DEFECTO;
+    },
+
+    _calcular() {
+        const ahora = Date.now();
+        const cfg = DESPACHO_CFG;
+        const local = CONFIG.LOCAL;
+        const { pedidos, doms } = despacho._datos;
+        const prepMin = despacho._estimarPrepMin(pedidos);
+
+        const listoEstimado = (p) => {
+            if (['Listo', 'En camino', 'Entregado'].includes(p.estado)) return p.listoMs || ahora;
+            return Math.max(p.creadoMs + prepMin * 60000, ahora + 60000);
+        };
+        const aParada = (p) => ({
+            id: p.uuid, nombre: p.destino, creadoMs: p.creadoMs,
+            listoMs: listoEstimado(p), unidades: p.unidades, pos: p.pos,
+        });
+
+        const domiciliosHoy = pedidos.filter(p => p.tipo === 'Domicilio');
+        const activos = domiciliosHoy.filter(p => p.estado !== 'Entregado');
+        const cola = activos.filter(p => !p.deliveryPersonId);
+
+        const repartidores = doms.map((d, i) => {
+            const est = (Array.isArray(d.domiciliarios_estado) ? d.domiciliarios_estado[0] : d.domiciliarios_estado)
+                || { disponible: false, bandeja: null };
+            const asignados = activos.filter(p => p.deliveryPersonId === d.id)
+                .sort((a, b) => (a.ordenRuta ?? 99) - (b.ordenRuta ?? 99));
+            let libreMs = ahora;
+            let situacion = 'En el local';
+
+            const enCamino = asignados.filter(p => p.estado === 'En camino');
+            if (enCamino.length) {
+                const salio = Math.min(...enCamino.map(p => p.enCaminoMs || ahora));
+                const ultimo = domiciliosHoy
+                    .filter(p => p.deliveryPersonId === d.id && p.entregadoMs && p.entregadoMs >= salio)
+                    .sort((a, b) => b.entregadoMs - a.entregadoMs)[0];
+                const inicio = ultimo
+                    ? { pos: ultimo.pos || local, ms: ultimo.entregadoMs }
+                    : { pos: local, ms: salio };
+                libreMs = despachoAlgoritmo.simular(local, enCamino.map(aParada), inicio.ms, cfg, inicio).regresoMs;
+                situacion = `En ruta · ${enCamino.length} por entregar`;
+            } else if (asignados.length) {
+                const salida = Math.max(ahora, ...asignados.map(listoEstimado));
+                libreMs = despachoAlgoritmo.simular(local, asignados.map(aParada), salida, cfg).regresoMs;
+                situacion = `Asignado · ${asignados.length} por salir`;
+            } else {
+                const ultimo = domiciliosHoy.filter(p => p.deliveryPersonId === d.id && p.entregadoMs)
+                    .sort((a, b) => b.entregadoMs - a.entregadoMs)[0];
+                if (ultimo) {
+                    const vuelta = ultimo.entregadoMs + despachoAlgoritmo.minutos(ultimo.pos, local, cfg) * 60000;
+                    if (vuelta > ahora) { libreMs = vuelta; situacion = 'Regresando al local'; }
+                }
+            }
+
+            return {
+                id: d.id, nombre: d.nombre, color: COLORES_RUTA[i % COLORES_RUTA.length],
+                estado: est, disponible: !!est.disponible,
+                capacidad: cfg.CAPACIDAD[est.bandeja] || 0,
+                libreMs: Math.max(libreMs, ahora), situacion, asignados,
+            };
+        });
+
+        const disponibles = repartidores.filter(r => r.disponible && r.capacidad > 0);
+        const plan = despachoAlgoritmo.planificar({
+            pedidos: cola.map(aParada),
+            domiciliarios: disponibles.map(r => ({ id: r.id, nombre: r.nombre, capacidad: r.capacidad, libreMs: r.libreMs })),
+            ahora, local, cfg,
+        });
+
+        despacho._plan = {
+            ahora, prepMin, repartidores, cola, plan,
+            porId: new Map(pedidos.map(p => [p.uuid, p])),
+            colorDe: new Map(repartidores.map(r => [r.id, r.color])),
+        };
+    },
+
+    _render() {
+        const { ahora, prepMin, repartidores, cola, plan, porId, colorDe } = despacho._plan;
+        const hora = (ms) => new Date(ms).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        const minDesde = (ms, desde) => Math.round((ms - desde) / 60000);
+
+        const disponibles = repartidores.filter(r => r.disponible);
+        const sinUbicacion = cola.filter(p => !p.pos).length;
+        document.getElementById('despacho-resumen').innerHTML = `
+            <span><strong>${cola.length}</strong> sin asignar</span>
+            <span><strong>${disponibles.length}</strong> de ${repartidores.length} domiciliarios disponibles</span>
+            <span>Cocina ~<strong>${prepMin}</strong> min</span>
+            ${sinUbicacion ? `<span class="resumen-alerta">${sinUbicacion} sin ubicación</span>` : ''}`;
+
+        let html = '';
+
+        // --- Sugerencias
+        html += '<div class="section-label">Sugerencias</div>';
+        if (plan.viajes.length === 0 && plan.sinAsignar.length === 0) {
+            html += '<div class="historial-empty">No hay domicilios por asignar.</div>';
+        }
+        plan.viajes.forEach((v, i) => {
+            const color = colorDe.get(v.domiciliario.id);
+            const sale = v.salidaMs <= ahora + 60000 ? 'Salir ahora' : `Salir ~${hora(v.salidaMs)}`;
+            const paradas = v.paradas.map((p, j) => {
+                const ped = porId.get(p.id);
+                const espera = minDesde(v.llegadas[p.id], p.creadoMs);
+                return `<li>
+                    <span class="parada-num" style="background:${color}">${j + 1}</span>
+                    <span class="parada-nombre">${esc(p.nombre)}${p.pos ? '' : ' <em class="tag-alerta">sin ubicación</em>'}</span>
+                    <span class="parada-info">${p.unidades} prod · ${esc(ped?.estado || '')} · llega ${hora(v.llegadas[p.id])}
+                        <strong class="${espera > DESPACHO_CFG.META_MIN ? 'tarde' : ''}">(${espera} min)</strong></span>
+                </li>`;
+            }).join('');
+            html += `<div class="viaje-card" style="border-left-color:${color}">
+                <div class="viaje-header">
+                    <span class="viaje-dom">${esc(v.domiciliario.nombre)}</span>
+                    <span class="viaje-carga">${v.carga}/${v.domiciliario.capacidad} productos</span>
+                </div>
+                <div class="viaje-sub">${sale} · regresa ~${hora(v.regresoMs)}</div>
+                <ol class="viaje-paradas">${paradas}</ol>
+                ${v.avisos.map(a => `<div class="viaje-aviso">${esc(a)}</div>`).join('')}
+                ${v.asignableAhora
+                    ? `<button class="btn-estado" data-asignar="${i}">Asignar a ${esc(v.domiciliario.nombre)}</button>`
+                    : '<div class="viaje-proximo">Próximo viaje (se podrá asignar cuando esté por salir)</div>'}
+            </div>`;
+        });
+        plan.sinAsignar.forEach(({ pedido, motivo }) => {
+            html += `<div class="viaje-card viaje-sin">
+                <strong>${esc(pedido.nombre)}</strong> · espera ${minDesde(ahora, pedido.creadoMs)} min
+                <div class="viaje-aviso">${esc(motivo)}</div></div>`;
+        });
+
+        // --- Domiciliarios
+        html += '<div class="section-label">Domiciliarios</div>';
+        if (repartidores.length === 0) {
+            html += '<div class="historial-empty">No hay usuarios con rol domiciliario.</div>';
+        }
+        repartidores.forEach(r => {
+            const asignados = r.asignados.map(p => `
+                <li>${esc(p.ordenRuta ?? '-')}. ${esc(p.destino)} <span class="pedido-estado pedido-estado-${p.estado === 'En camino' ? 'en-camino' : 'listo'}">${esc(p.estado)}</span>
+                ${p.estado !== 'En camino' ? `<button class="btn-link" data-quitar="${esc(p.uuid)}">quitar</button>` : ''}</li>`).join('');
+            html += `<div class="dom-fila">
+                <div class="dom-fila-top">
+                    <span class="dom-color" style="background:${r.color}"></span>
+                    <span class="dom-nombre">${esc(r.nombre)}</span>
+                    <span class="dom-situacion">${esc(r.situacion)}${r.libreMs > ahora + 60000 ? ` · libre ~${hora(r.libreMs)}` : ''}</span>
+                </div>
+                ${disponibilidad.selector(r.estado, 'disp-' + r.id).replace('<select', `<select data-dom="${esc(r.id)}"`)}
+                ${asignados ? `<ul class="dom-asignados">${asignados}</ul>` : ''}
+            </div>`;
+        });
+
+        const panel = document.getElementById('despacho-panel');
+        panel.innerHTML = html;
+
+        panel.querySelectorAll('[data-asignar]').forEach(b =>
+            b.addEventListener('click', () => despacho.asignar(plan.viajes[Number(b.dataset.asignar)], b)));
+        panel.querySelectorAll('[data-quitar]').forEach(b =>
+            b.addEventListener('click', () => despacho.quitar(b.dataset.quitar, b)));
+        panel.querySelectorAll('select[data-dom]').forEach(s =>
+            s.addEventListener('change', async () => {
+                despacho._ocupado = true;
+                await disponibilidad.guardar(s.dataset.dom, s.value);
+                despacho._ocupado = false;
+                despacho.cargar(true);
+            }));
+
+        despacho._renderMapa();
+    },
+
+    _renderMapa() {
+        if (!despacho._capa) return;
+        const { plan, repartidores, colorDe } = despacho._plan;
+        const local = [CONFIG.LOCAL.lat, CONFIG.LOCAL.lng];
+        despacho._capa.clearLayers();
+
+        const numero = (n, color) => L.divIcon({
+            className: 'mapa-parada', html: `<span style="background:${color}">${n}</span>`, iconSize: [24, 24],
+        });
+
+        plan.viajes.forEach(v => {
+            const color = colorDe.get(v.domiciliario.id);
+            const puntos = [local, ...v.paradas.filter(p => p.pos).map(p => [p.pos.lat, p.pos.lng]), local];
+            L.polyline(puntos, { color, weight: 4, opacity: v.asignableAhora ? 0.9 : 0.4, dashArray: v.asignableAhora ? null : '6 8' })
+                .addTo(despacho._capa);
+            v.paradas.forEach((p, j) => {
+                if (!p.pos) return;
+                L.marker([p.pos.lat, p.pos.lng], { icon: numero(j + 1, color) })
+                    .bindTooltip(`${p.nombre} (${v.domiciliario.nombre})`).addTo(despacho._capa);
+            });
+        });
+
+        // Pedidos ya asignados (en ruta o por salir)
+        repartidores.forEach(r => r.asignados.forEach(p => {
+            if (!p.pos) return;
+            L.circleMarker([p.pos.lat, p.pos.lng], { radius: 7, color: '#fff', weight: 2, fillColor: r.color, fillOpacity: 1 })
+                .bindTooltip(`${p.destino} · ${r.nombre} · ${p.estado}`).addTo(despacho._capa);
+        }));
+    },
+
+    async asignar(viaje, btn) {
+        btn.disabled = true;
+        despacho._ocupado = true;
+        try {
+            const resultados = await Promise.all(viaje.paradas.map((p, j) =>
+                supabaseClient.from('customer_orders')
+                    .update({ delivery_person_id: viaje.domiciliario.id, orden_ruta: j + 1 })
+                    .eq('id', p.id)));
+            const fallo = resultados.find(r => r.error);
+            if (fallo) throw fallo.error;
+            ui.mostrarToast(`Asignado a ${viaje.domiciliario.nombre}`);
+        } catch (e) {
+            ui.alert('Error', 'No se pudo asignar el viaje completo. Revisa la lista de domiciliarios.');
+            console.error(e);
+        } finally {
+            despacho._ocupado = false;
+            despacho.cargar(true);
+        }
+    },
+
+    async quitar(id, btn) {
+        btn.disabled = true;
+        const { error } = await supabaseClient.from('customer_orders').update({ delivery_person_id: null }).eq('id', id);
+        if (error) {
+            ui.alert('Error', 'No se pudo quitar la asignación.');
+            console.error(error);
+        }
+        despacho.cargar(true);
     },
 };
 
@@ -1232,6 +1656,7 @@ const clientesMapa = {
         document.getElementById('btn-historial').style.display = 'none';
         document.getElementById('btn-toggle').style.display = 'none';
         document.getElementById('header-title').innerText = 'Ubicación de clientes';
+        document.getElementById('clientes-buscar').value = '';
 
         clientesMapa._initMapa();
         await clientesMapa.cargar();

@@ -745,7 +745,8 @@ body {
 
 /* Cocina y estados de pedido */
 #cocina-view,
-#domicilios-view {
+#domicilios-view,
+#despacho-view {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
@@ -809,7 +810,8 @@ body {
     height: calc(100vh - 110px);
 }
 
-#clientes-mapa {
+#clientes-mapa,
+#despacho-mapa {
     border-radius: 18px;
     min-height: 300px;
     box-shadow: 0 6px 12px rgba(0, 168, 204, 0.08);
@@ -886,4 +888,87 @@ body {
         height: auto;
     }
     .clientes-lateral .admin-list { max-height: 50vh; }
+}
+
+/* Estados de domicilio */
+.pedido-estado-en-camino { background: #e3f0fb; color: var(--ocean-deep); }
+.pedido-estado-entregado { background: #eceff1; color: #607d8b; }
+
+/* Vista del domiciliario */
+.dom-estado-card {
+    background: var(--pure-white);
+    border: 2px solid var(--aqua-accent);
+    border-radius: 18px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.dom-estado-titulo { font-weight: 700; color: var(--ocean-deep); }
+.dom-selector { font-size: 1.05rem; padding: 10px 12px; }
+.dom-card { position: relative; }
+.dom-espera { font-size: 0.9rem; color: #c0720b; text-align: center; }
+.ruta-numero {
+    position: absolute; top: -10px; left: -10px;
+    width: 32px; height: 32px; border-radius: 50%;
+    background: var(--ocean-deep); color: white; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Despacho (admin) */
+.despacho-resumen {
+    display: flex; flex-wrap: wrap; gap: 6px 14px;
+    background: var(--pure-white); border-radius: 14px; padding: 10px 14px;
+    font-size: 0.95rem; color: #6b8fa3;
+}
+.despacho-resumen strong { color: var(--ocean-deep); }
+.resumen-alerta { color: #c0720b; font-weight: 700; }
+.despacho-panel {
+    flex-grow: 1; min-height: 0; overflow-y: auto;
+    display: flex; flex-direction: column; gap: 10px; padding-right: 4px;
+}
+.despacho-panel .section-label { margin: 4px 0 0; }
+
+.viaje-card {
+    background: var(--pure-white); border-radius: 14px;
+    border-left: 6px solid var(--ocean-deep);
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 6px;
+    box-shadow: 0 4px 12px rgba(0, 91, 150, 0.07);
+}
+.viaje-sin { border-left-color: #c0392b; }
+.viaje-header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.viaje-dom { font-size: 1.15rem; font-weight: 700; color: var(--text-dark); }
+.viaje-carga { font-size: 0.9rem; font-weight: 700; color: #6b8fa3; }
+.viaje-sub { font-size: 0.9rem; color: #6b8fa3; }
+.viaje-paradas { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+.viaje-paradas li { display: grid; grid-template-columns: 26px 1fr; column-gap: 8px; align-items: center; }
+.parada-num {
+    grid-row: span 2; width: 24px; height: 24px; border-radius: 50%;
+    color: white; font-size: 0.8rem; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+}
+.parada-nombre { font-weight: 600; }
+.parada-info { font-size: 0.85rem; color: #6b8fa3; }
+.tarde { color: #c0392b; }
+.tag-alerta { font-style: normal; font-size: 0.75rem; color: #c0720b; background: #fef3e0; border-radius: 6px; padding: 1px 6px; }
+.viaje-aviso { font-size: 0.85rem; background: #fdecea; color: #c0392b; border-radius: 8px; padding: 5px 9px; }
+.viaje-proximo { font-size: 0.85rem; color: #6b8fa3; text-align: center; padding: 6px; }
+
+.dom-fila {
+    background: var(--pure-white); border-radius: 14px; padding: 10px 14px;
+    display: flex; flex-direction: column; gap: 8px;
+}
+.dom-fila-top { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dom-color { width: 12px; height: 12px; border-radius: 50%; }
+.dom-nombre { font-weight: 700; }
+.dom-situacion { font-size: 0.85rem; color: #6b8fa3; }
+.dom-asignados { list-style: none; font-size: 0.9rem; display: flex; flex-direction: column; gap: 4px; }
+.btn-link { background: none; border: none; color: #c0392b; text-decoration: underline; cursor: pointer; font-size: 0.85rem; }
+
+.mapa-parada span {
+    display: flex; align-items: center; justify-content: center;
+    width: 24px; height: 24px; border-radius: 50%;
+    color: white; font-size: 0.8rem; font-weight: 700;
+    border: 2px solid white; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
