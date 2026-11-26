@@ -5,8 +5,8 @@ const CONFIG = {
     COCINA_REFRESH_MS: 15_000,
     DESPACHO_REFRESH_MS: 20_000,
     DOMINIO_USUARIOS: 'megadelicias.local',
-    // Cra. 60 #45A-21 (aproximado desde OpenStreetMap; ajustar si hace falta)
-    LOCAL: { lat: 6.2490, lng: -75.5779 },
+    // Cra. 60 #45A-21 (coordenadas confirmadas por el negocio)
+    LOCAL: { lat: 6.249576, lng: -75.577730 },
     LOCAL_STORAGE_KEYS: {
         COLA: 'pos_cola_pedidos',
         PERFIL: 'pos_perfil',

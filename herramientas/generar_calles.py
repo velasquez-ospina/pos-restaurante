@@ -16,7 +16,7 @@ import urllib.parse
 import urllib.request
 from datetime import date
 
-CENTRO = (6.2490, -75.5779)  # Cra. 60 #45A-21 (aprox.)
+CENTRO = (6.249576, -75.577730)  # Cra. 60 #45A-21
 RADIO_M = 1500
 SERVIDORES = [
     "https://overpass-api.de/api/interpreter",
