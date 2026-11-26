@@ -1891,6 +1891,43 @@ const clientesMapa = {
         }
     },
 
+    async nuevo() {
+        const nombre = (await ui.prompt('Nuevo cliente', 'Nombre del cliente (como lo escriben los meseros en "¿Para dónde?"):', 'text', 'Crear') || '')
+            .trim().replace(/\s+/g, ' ');
+        if (!nombre) return;
+
+        const normal = (t) => t.trim().toLowerCase();
+        const existente = clientesMapa._clientes.find(c => normal(c.name) === normal(nombre));
+        if (existente) {
+            await ui.alert('Ya existe', `"${existente.name}" ya está en la lista.`);
+            document.getElementById('clientes-buscar').value = '';
+            document.getElementById('clientes-filtro').value = 'todos';
+            clientesMapa.seleccionar(existente.id);
+            return;
+        }
+
+        const { data, error } = await supabaseClient
+            .from('clients')
+            .insert({ name: nombre })
+            .select('id, name, direccion, lat, lng, ubicacion_fuente, ubicacion_nota, ubicacion_verificada')
+            .single();
+        if (error) {
+            ui.alert('Error', 'No se pudo crear el cliente.');
+            console.error(error);
+            return;
+        }
+
+        clientesMapa._clientes.push(data);
+        clientesMapa._clientes.sort((a, b) => a.name.localeCompare(b.name, 'es-CO'));
+        if (!state.listaClientes.includes(data.name)) state.listaClientes.push(data.name);
+
+        ui.mostrarToast('Cliente creado: toca su ubicación en el mapa');
+        document.getElementById('clientes-buscar').value = '';
+        document.getElementById('clientes-filtro').value = 'pendientes';
+        clientesMapa.seleccionar(data.id);
+        document.getElementById('clientes-mapa').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+
     async quitar() {
         const c = clientesMapa._seleccionado;
         if (!c) return;
@@ -1932,7 +1969,7 @@ const ui = {
         overlay.style.display = mostrar ? 'flex' : 'none';
     },
 
-    async prompt(titulo, mensaje, tipoInput = 'text') {
+    async prompt(titulo, mensaje, tipoInput = 'text', textoBoton = 'Aceptar') {
         return new Promise((resolve) => {
             const overlay = document.getElementById('modal-overlay');
             const titleEl = document.getElementById('modal-title');
@@ -1947,7 +1984,7 @@ const ui = {
             inputEl.value = '';
             inputEl.style.display = 'block';
             btnCancel.style.display = 'block';
-            btnConfirm.innerText = 'Autorizar';
+            btnConfirm.innerText = textoBoton;
             overlay.style.display = 'flex';
             inputEl.focus();
 

@@ -158,7 +158,10 @@
                         <option value="verificados">Verificados</option>
                     </select>
                 </div>
-                <div class="clientes-progreso" id="clientes-progreso"></div>
+                <div class="clientes-acciones">
+                    <div class="clientes-progreso" id="clientes-progreso"></div>
+                    <button class="btn-nuevo-cliente" id="btn-nuevo-cliente">+ Nuevo cliente</button>
+                </div>
                 <div class="admin-list" id="clientes-lista"></div>
             </div>
         </div>
@@ -218,6 +221,7 @@
         document.getElementById('btn-home-despacho').addEventListener('click', () => despacho.abrir());
         document.getElementById('clientes-buscar').addEventListener('input', () => clientesMapa.renderLista());
         document.getElementById('clientes-filtro').addEventListener('change', () => clientesMapa.renderLista());
+        document.getElementById('btn-nuevo-cliente').addEventListener('click', () => clientesMapa.nuevo());
         document.getElementById('btn-refresh-domicilios').addEventListener('click', () => domicilios.cargar());
 
         document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); auth.login(); });

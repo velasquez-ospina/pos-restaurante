@@ -972,3 +972,16 @@ body {
     color: white; font-size: 0.8rem; font-weight: 700;
     border: 2px solid white; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 }
+
+.clientes-acciones { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.btn-nuevo-cliente {
+    background: var(--pure-white);
+    border: 2px solid var(--ocean-deep);
+    color: var(--ocean-deep);
+    padding: 8px 14px;
+    border-radius: 10px;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.btn-nuevo-cliente:active { background: var(--ocean-deep); color: white; }
