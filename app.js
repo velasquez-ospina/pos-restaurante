@@ -1398,6 +1398,7 @@ const despacho = {
                 supabaseClient.from('profiles')
                     .select('id, nombre, domiciliarios_estado(disponible, bandeja, actualizado_at)')
                     .eq('rol', 'domiciliario').eq('activo', true).order('nombre'),
+                rutasCalles.cargar(), // red de calles para distancias a pie (si falla, se estima)
             ]);
             if (error) throw error;
             despacho._datos = { pedidos, doms };
@@ -1592,7 +1593,7 @@ const despacho = {
 
         plan.viajes.forEach(v => {
             const color = colorDe.get(v.domiciliario.id);
-            const puntos = [local, ...v.paradas.filter(p => p.pos).map(p => [p.pos.lat, p.pos.lng]), local];
+            const puntos = despacho._trazo([CONFIG.LOCAL, ...v.paradas.filter(p => p.pos).map(p => p.pos), CONFIG.LOCAL]);
             L.polyline(puntos, { color, weight: 4, opacity: v.asignableAhora ? 0.9 : 0.4, dashArray: v.asignableAhora ? null : '6 8' })
                 .addTo(despacho._capa);
             v.paradas.forEach((p, j) => {
@@ -1608,6 +1609,17 @@ const despacho = {
             L.circleMarker([p.pos.lat, p.pos.lng], { radius: 7, color: '#fff', weight: 2, fillColor: r.color, fillOpacity: 1 })
                 .bindTooltip(`${p.destino} · ${r.nombre} · ${p.estado}`).addTo(despacho._capa);
         }));
+    },
+
+    // Une los tramos entre paradas siguiendo las calles (o en linea recta si no hay red)
+    _trazo(paradas) {
+        const puntos = [];
+        for (let i = 0; i < paradas.length - 1; i++) {
+            const tramo = rutasCalles.camino(paradas[i], paradas[i + 1])
+                || [[paradas[i].lat, paradas[i].lng], [paradas[i + 1].lat, paradas[i + 1].lng]];
+            puntos.push(...(i === 0 ? tramo : tramo.slice(1)));
+        }
+        return puntos;
     },
 
     async asignar(viaje, btn) {
@@ -1659,6 +1671,7 @@ const clientesMapa = {
         document.getElementById('clientes-buscar').value = '';
 
         clientesMapa._initMapa();
+        rutasCalles.cargar().then(() => clientesMapa._renderPanel());
         await clientesMapa.cargar();
     },
 
@@ -1809,7 +1822,13 @@ const clientesMapa = {
             return;
         }
         const p = clientesMapa._pendiente;
-        const distancia = p ? `A ${Math.round(distanciaMetros(CONFIG.LOCAL, p))} m del local (línea recta)` : 'Toca el mapa donde queda este cliente.';
+        let distancia = 'Toca el mapa donde queda este cliente.';
+        if (p) {
+            const aPie = rutasCalles.metros(CONFIG.LOCAL, p);
+            distancia = aPie != null
+                ? `A ${Math.round(aPie)} m caminando del local (~${Math.round(aPie / DESPACHO_CFG.VELOCIDAD_M_MIN)} min)`
+                : `A ${Math.round(distanciaMetros(CONFIG.LOCAL, p))} m del local (línea recta)`;
+        }
         const estado = c.ubicacion_verificada ? 'Verificada' : (c.lat != null ? `Sin verificar (${esc(c.ubicacion_fuente || '')})` : 'Sin ubicación');
 
         // Conservar lo que el usuario ya escribio al re-renderizar
