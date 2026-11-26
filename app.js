@@ -2,19 +2,39 @@
 const CONFIG = {
     TOAST_DURATION_MS: 2000,
     SYNC_INTERVAL_MS: 10_000,
-    SECURITY_CLICK_THRESHOLD: 5,
-    SECURITY_CLICK_WINDOW_MS: 3000,
+    COCINA_REFRESH_MS: 15_000,
+    DOMINIO_USUARIOS: 'megadelicias.local',
     LOCAL_STORAGE_KEYS: {
-        TOKEN: 'pos_token_seguridad',
         COLA: 'pos_cola_pedidos',
+        PERFIL: 'pos_perfil',
     },
 };
 
+const ROLES = {
+    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true },
+    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false },
+    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true },
+};
+
+const ESTADOS_PEDIDO = ['Pendiente', 'En preparación', 'Listo'];
+
+const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'admin-view'];
+
+const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const esUUID = (v) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v || '');
+
+const nuevoUUID = () => crypto.randomUUID
+    ? crypto.randomUUID()
+    : '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c =>
+        (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16));
+
+const puede = (permiso) => !!(state.perfil && ROLES[state.perfil.rol]?.[permiso]);
+
 const _state = {
 
-    posToken: localStorage.getItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN),
-    securityClickCount: 0,
-    securityClickTimer: null,
+    perfil: null,
 
     currentView: 'home',
     tipoServicio: null,
@@ -57,8 +77,8 @@ const onStateChange = (propName, callback) => {
 };
 
 window.addEventListener('load', () => {
-    auth.verificarSeguridad();
     domicilioAutocomplete.init();
+    auth.init();
 });
 
 window.addEventListener('online', () => cola.procesar());
@@ -66,13 +86,32 @@ setInterval(() => cola.procesar(), CONFIG.SYNC_INTERVAL_MS);
 
 const app = {
 
+    _mostrarVista(...visibles) {
+        VISTAS.forEach(id => {
+            document.getElementById(id).style.display = visibles.includes(id) ? 'flex' : 'none';
+        });
+        document.getElementById('app-header').style.display =
+            visibles.some(v => v !== 'login-view' && v !== 'home-view') ? 'flex' : 'none';
+    },
+
+    mostrarInicio() {
+        const rol = ROLES[state.perfil.rol];
+        document.getElementById('user-info').innerText = `${state.perfil.nombre} · ${rol.nombre}`;
+        document.getElementById('home-buttons-servicio').style.display = rol.servicio ? 'flex' : 'none';
+        document.getElementById('home-buttons-cocina').style.display = rol.cocina ? 'flex' : 'none';
+        document.getElementById('home-config-links').style.display = rol.configurar ? 'flex' : 'none';
+        app._mostrarVista('home-view');
+    },
+
     async iniciarServicio(tipoServicio) {
+        if (!puede('servicio')) return;
         state.tipoServicio = tipoServicio;
         await api.obtenerDatosBackend();
 
     },
 
     async irAAdmin(tipoServicio) {
+        if (!puede('configurar')) return;
         state.tipoServicio = tipoServicio;
         state.currentView = 'admin';
         state.origenAdmin = 'home';
@@ -83,39 +122,28 @@ const app = {
         state.tipoServicio = null;
         state.currentView = 'home';
         state.tipoActual = 'Salón';
-
-        document.getElementById('home-view').style.display = 'flex';
-        document.getElementById('app-header').style.display = 'none';
-        document.getElementById('pos-view').style.display = 'none';
-        document.getElementById('historial-view').style.display = 'none';
-        document.getElementById('admin-view').style.display = 'none';
+        cocina.detener();
+        historial.reset();
+        app.mostrarInicio();
     },
 
     _abrirPOS() {
         state.currentView = 'pos';
-        document.getElementById('home-view').style.display = 'none';
-        document.getElementById('app-header').style.display = 'flex';
-        document.getElementById('pos-view').style.display = 'flex';
-        document.getElementById('historial-view').style.display = 'none';
-        document.getElementById('admin-view').style.display = 'none';
+        app._mostrarVista('pos-view');
 
         document.getElementById('btn-historial').style.display = 'inline-block';
 
         document.getElementById('btn-toggle').style.display = 'none';
 
         const badge = state.tipoServicio === 'Desayuno'
-            ? `<span class="badge-servicio badge-desayuno">️ Desayuno</span>`
-            : `<span class="badge-servicio badge-almuerzo">️ Almuerzo</span>`;
+            ? `<span class="badge-servicio badge-desayuno">Desayuno</span>`
+            : `<span class="badge-servicio badge-almuerzo">Almuerzo</span>`;
         document.getElementById('header-title').innerHTML = `Registro de Pedidos ${badge}`;
     },
 
     _abrirAdmin() {
         state.currentView = 'admin';
-        document.getElementById('home-view').style.display = 'none';
-        document.getElementById('app-header').style.display = 'flex';
-        document.getElementById('pos-view').style.display = 'none';
-        document.getElementById('historial-view').style.display = 'none';
-        document.getElementById('admin-view').style.display = 'flex';
+        app._mostrarVista('admin-view');
 
         document.getElementById('btn-historial').style.display = 'none';
 
@@ -129,40 +157,95 @@ const app = {
         }
 
         const badge = state.tipoServicio === 'Desayuno'
-            ? `<span class="badge-servicio badge-desayuno">️ Desayuno</span>`
-            : `<span class="badge-servicio badge-almuerzo">️ Almuerzo</span>`;
+            ? `<span class="badge-servicio badge-desayuno">Desayuno</span>`
+            : `<span class="badge-servicio badge-almuerzo">Almuerzo</span>`;
         document.getElementById('header-title').innerHTML = `Configuración ${badge}`;
     },
 };
 
 const auth = {
-    async verificarSeguridad() {
-        if (!state.posToken) {
-            const clave = await ui.prompt('Seguridad', 'Ingresa la clave de autorización para este dispositivo:', 'password');
-            if (clave) {
-                state.posToken = clave;
-                localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN, clave);
-            } else {
-                await ui.alert('Acceso Denegado', 'No podrás operar el sistema sin la clave de seguridad. Recarga la página.');
-            }
+    async init() {
+        supabaseClient.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_OUT') setTimeout(() => auth._mostrarLogin(), 0);
+        });
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) {
+            await auth._cargarPerfil(session.user);
+        } else {
+            auth._mostrarLogin();
         }
     },
 
-    async resetearClave() {
-        state.securityClickCount++;
-        if (state.securityClickCount === 1) {
-            state.securityClickTimer = setTimeout(() => {
-                state.securityClickCount = 0;
-            }, CONFIG.SECURITY_CLICK_WINDOW_MS);
+    _mostrarLogin() {
+        state.perfil = null;
+        cocina.detener();
+        document.getElementById('login-clave').value = '';
+        app._mostrarVista('login-view');
+    },
+
+    async login() {
+        let usuario = document.getElementById('login-usuario').value.trim().toLowerCase();
+        const clave = document.getElementById('login-clave').value;
+        if (!usuario || !clave) return;
+        if (!usuario.includes('@')) usuario = `${usuario}@${CONFIG.DOMINIO_USUARIOS}`;
+
+        ui.mostrarCarga(true, 'Iniciando sesión...');
+        try {
+            const { data, error } = await supabaseClient.auth.signInWithPassword({ email: usuario, password: clave });
+            if (error) {
+                const msg = error.message === 'Invalid login credentials'
+                    ? 'Usuario o contraseña incorrectos.'
+                    : 'No se pudo iniciar sesión. Verifica tu conexión a internet.';
+                await ui.alert('Inicio de sesión', msg);
+                return;
+            }
+            await auth._cargarPerfil(data.user);
+        } finally {
+            ui.mostrarCarga(false);
         }
-        if (state.securityClickCount >= CONFIG.SECURITY_CLICK_THRESHOLD) {
-            clearTimeout(state.securityClickTimer);
-            localStorage.removeItem(CONFIG.LOCAL_STORAGE_KEYS.TOKEN);
-            state.posToken = null;
-            state.securityClickCount = 0;
-            await ui.alert('Seguridad', 'Clave de seguridad eliminada del dispositivo.');
-            auth.verificarSeguridad();
+    },
+
+    async _cargarPerfil(user) {
+        let perfil = null;
+        const { data, error } = await supabaseClient
+            .from('profiles').select('id, nombre, rol, activo').eq('id', user.id).maybeSingle();
+
+        if (!error) {
+            perfil = data;
+            try { localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.PERFIL, JSON.stringify(perfil)); } catch (e) { }
+        } else {
+            // Sin conexion: usar el ultimo perfil conocido de este usuario
+            try {
+                const cache = JSON.parse(localStorage.getItem(CONFIG.LOCAL_STORAGE_KEYS.PERFIL));
+                if (cache?.id === user.id) perfil = cache;
+            } catch (e) { }
         }
+
+        if (!perfil || !perfil.activo || !ROLES[perfil.rol]) {
+            await ui.alert('Sin acceso', 'Tu usuario no tiene un rol asignado o está desactivado. Pide a un administrador que lo revise.');
+            await supabaseClient.auth.signOut();
+            return;
+        }
+
+        state.perfil = perfil;
+        cola.procesar();
+        if (perfil.rol === 'cocina') {
+            cocina.abrir();
+        } else {
+            app.mostrarInicio();
+        }
+    },
+
+    async logout() {
+        if (state.colaPedidos.length > 0) {
+            const ok = await ui.confirmar('Pedidos sin enviar',
+                `Hay ${state.colaPedidos.length} pedido(s) que aún no se han enviado. Se enviarán cuando alguien inicie sesión en este dispositivo con internet. ¿Cerrar sesión de todas formas?`);
+            if (!ok) return;
+        }
+        await supabaseClient.auth.signOut();
+        try { localStorage.removeItem(CONFIG.LOCAL_STORAGE_KEYS.PERFIL); } catch (e) { }
+        auth._mostrarLogin();
     },
 };
 
@@ -290,56 +373,53 @@ const api = {
 
 const cola = {
     guardar(payload) {
-        const pedidoLocal = { idLocal: Date.now().toString(), payload };
-        state.colaPedidos.push(pedidoLocal);
-        localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
+        state.colaPedidos.push({ idLocal: nuevoUUID(), payload });
+        cola._persistir();
         cola.procesar();
+    },
+
+    _persistir() {
+        localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
     },
 
     retryDelay: 2000,
     async procesar() {
-        if (!navigator.onLine || state.colaPedidos.length === 0 || state.sincronizando) return;
+        if (!navigator.onLine || !state.perfil || state.colaPedidos.length === 0 || state.sincronizando) return;
         state.sincronizando = true;
-        const pendientes = [...state.colaPedidos];
 
-        for (const pedido of pendientes) {
-            try {
+        // Pedidos guardados con la version anterior no tenian UUID
+        state.colaPedidos.forEach(p => { if (!esUUID(p.idLocal)) p.idLocal = nuevoUUID(); });
+        cola._persistir();
+
+        try {
+            for (const pedido of [...state.colaPedidos]) {
                 const p = pedido.payload;
-
-                const { data: orderData, error: orderErr } = await supabaseClient.from('customer_orders').insert({
-                    order_type: p.tipo,
-                    customer_name: p.domicilio_quien || null,
-                    delivery_destination: p.domicilio_para || null,
-                    total_amount: p.total
-                }).select().single();
-
-                if (orderErr) throw orderErr;
-
-                if (p.carrito && p.carrito.length > 0) {
-                    const lineItems = p.carrito.map(c => ({
-                        customer_order_id: orderData.id,
+                const { data: orderId, error } = await supabaseClient.rpc('registrar_pedido', {
+                    p_client_id: pedido.idLocal,
+                    p_tipo: p.tipo,
+                    p_cliente: p.domicilio_quien || '',
+                    p_destino: p.domicilio_para || '',
+                    p_items: (p.carrito || []).map(c => ({
                         menu_dish_id: c.dish_id,
                         quantity: c.qty,
                         unit_price: c.precio,
-                        modifications_selected: c.mods && c.mods.length > 0 ? c.mods.join(', ') : null
-                    }));
-
-                    const { error: lineErr } = await supabaseClient.from('order_line_items').insert(lineItems);
-                    if (lineErr) throw lineErr;
-                }
+                        modifications_selected: c.mods && c.mods.length > 0 ? c.mods.join(', ') : null,
+                    })),
+                });
+                if (error) throw error;
 
                 state.colaPedidos = state.colaPedidos.filter(q => q.idLocal !== pedido.idLocal);
-                localStorage.setItem(CONFIG.LOCAL_STORAGE_KEYS.COLA, JSON.stringify(state.colaPedidos));
-                console.log('Pedido insertado en Supabase:', orderData.id);
+                cola._persistir();
+                console.log('Pedido insertado en Supabase:', orderId);
                 cola.retryDelay = 2000;
-            } catch (e) {
-                console.warn('Fallo Supabase. Reintentando luego.', e);
-                cola.retryDelay = Math.min(cola.retryDelay * 2, 60000);
-                setTimeout(() => cola.procesar(), cola.retryDelay);
-                break;
             }
+        } catch (e) {
+            console.warn('Fallo Supabase. Reintentando luego.', e);
+            cola.retryDelay = Math.min(cola.retryDelay * 2, 60000);
+            setTimeout(() => cola.procesar(), cola.retryDelay);
+        } finally {
+            state.sincronizando = false;
         }
-        state.sincronizando = false;
     },
 };
 
@@ -671,7 +751,7 @@ const pos = {
             items: carritoFinal.map(c => ({ ...c, nombre: c.item })),
             total: totalAmount
         };
-        state.historialPedidos = [pedidoOptimista, ...state.historialPedidos].slice(0, 5);
+        state.historialPedidos = [pedidoOptimista, ...state.historialPedidos];
         if (historial._visible) {
             historial.renderizar();
         }
@@ -852,30 +932,7 @@ const historial = {
         const container = document.getElementById('historial-container');
         container.innerHTML = '<div class="historial-empty">Cargando...</div>';
         try {
-            const { data, error } = await supabaseClient
-                .from('customer_orders')
-                .select('*, order_line_items(*, menu_dishes(name))')
-                .order('created_at', { ascending: false })
-                .limit(20);
-
-            if (error) throw error;
-
-            state.historialPedidos = data.map(o => ({
-                idPedido: o.id.split('-')[0].toUpperCase(),
-                fecha: o.created_at,
-                tipo: o.order_type,
-                domicilioPara: o.delivery_destination || '',
-                domicilioQuien: o.customer_name || '',
-                items: o.order_line_items.map(li => ({
-                    nombre: li.menu_dishes ? li.menu_dishes.name : 'Item',
-                    qty: li.quantity,
-                    precio: li.unit_price,
-                    categoria: 'Plato',
-                    modificaciones: li.modifications_selected
-                })),
-                total: o.total_amount
-            }));
-
+            state.historialPedidos = await pedidosDelDia.obtener();
             historial.renderizar();
         } catch (e) {
             container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
@@ -888,70 +945,12 @@ const historial = {
         container.innerHTML = '';
 
         if (state.historialPedidos.length === 0) {
-            container.innerHTML = '<div class="historial-empty">No hay pedidos registrados aún.</div>';
+            container.innerHTML = '<div class="historial-empty">No hay pedidos registrados hoy.</div>';
             return;
         }
 
         state.historialPedidos.forEach(pedido => {
-            const card = document.createElement('div');
-            card.className = 'historial-card';
-
-            const fecha = new Date(pedido.fecha);
-            const hora = isNaN(fecha) ? pedido.fecha : fecha.toLocaleTimeString('es-CO', {
-                hour: '2-digit', minute: '2-digit'
-            });
-
-            const tipoSlug = pedido.tipo.toLowerCase().replace(/ /g, '-');
-            const tipoBadge = `<span class="historial-tipo historial-tipo-${tipoSlug}">${pedido.tipo}</span>`;
-
-            const platos = pedido.items.filter(it => it.categoria === 'Plato');
-            const bebidas = pedido.items.filter(it => it.categoria === 'Bebida');
-
-            const renderItems = (items) => items.map(it => {
-                const precioStr = it.precio > 0
-                    ? `<span class="historial-item-precio">$${it.precio.toLocaleString('es-CO')}</span>`
-                    : '';
-                const modStr = it.modificaciones ? `<div style="font-size:0.8rem;color:#6b8fa3;margin-left:25px;">${it.modificaciones}</div>` : '';
-                return `<div class="historial-item-wrapper" style="display:flex; flex-direction:column; gap:2px; margin-bottom:4px;">
-                    <div class="historial-item">
-                        <span class="historial-item-qty">${it.qty}×</span>
-                        <span class="historial-item-nombre">${it.nombre}</span>
-                        ${precioStr}
-                    </div>
-                    ${modStr}
-                </div>`;
-            }).join('');
-
-            const separador = (platos.length > 0 && bebidas.length > 0)
-                ? '<div class="historial-items-divider"></div>'
-                : '';
-
-            const itemsHTML = renderItems(platos) + separador + renderItems(bebidas);
-
-            const domicilioHTML = (pedido.tipo === 'Domicilio' && pedido.domicilioPara)
-                ? `<div class="historial-domicilio">
-                       <span class="historial-domicilio-icon"></span>
-                       <span><strong>${pedido.domicilioPara}</strong> — ${pedido.domicilioQuien}</span>
-                   </div>`
-                : '';
-
-            const totalStr = pedido.total > 0
-                ? `<div class="historial-total">Total: $${pedido.total.toLocaleString('es-CO')}</div>`
-                : '';
-
-            card.innerHTML = `
-                <div class="historial-card-header">
-                    <div class="historial-id-hora">
-                        <span class="historial-id">${pedido.idPedido}</span>
-                        <span class="historial-hora">${hora}</span>
-                    </div>
-                    ${tipoBadge}
-                </div>
-                <div class="historial-items">${itemsHTML}</div>
-                ${domicilioHTML}
-                ${totalStr}`;
-
-            container.appendChild(card);
+            container.appendChild(pedidosDelDia.crearTarjeta(pedido, { precios: true }));
         });
     },
 
@@ -960,6 +959,201 @@ const historial = {
         document.getElementById('btn-historial').classList.remove('active');
         document.getElementById('historial-view').style.display = 'none';
         document.getElementById('pos-view').style.display = 'flex';
+    },
+};
+
+const pedidosDelDia = {
+    async obtener() {
+        const inicio = new Date();
+        inicio.setHours(0, 0, 0, 0);
+
+        const { data, error } = await supabaseClient
+            .from('customer_orders')
+            .select('*, profiles(nombre), order_line_items(*, menu_dishes(name, menu_sections(name)))')
+            .gte('created_at', inicio.toISOString())
+            .order('created_at', { ascending: false })
+            .limit(300);
+
+        if (error) throw error;
+
+        return data.map(o => ({
+            uuid: o.id,
+            idPedido: o.id.split('-')[0].toUpperCase(),
+            fecha: o.created_at,
+            tipo: o.order_type,
+            estado: o.order_status,
+            mesero: o.profiles?.nombre || '',
+            domicilioPara: o.delivery_destination || '',
+            domicilioQuien: o.customer_name || '',
+            items: o.order_line_items.map(li => ({
+                nombre: li.menu_dishes ? li.menu_dishes.name : 'Item',
+                qty: li.quantity,
+                precio: Number(li.unit_price),
+                categoria: (li.menu_dishes?.menu_sections?.name || '').toLowerCase() === 'bebidas' ? 'Bebida' : 'Plato',
+                modificaciones: li.modifications_selected,
+            })),
+            total: Number(o.total_amount),
+        }));
+    },
+
+    crearTarjeta(pedido, { precios = true, acciones = '' } = {}) {
+        const card = document.createElement('div');
+        card.className = 'historial-card';
+
+        const fecha = new Date(pedido.fecha);
+        const hora = isNaN(fecha) ? pedido.fecha : fecha.toLocaleTimeString('es-CO', {
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        const slug = (txt) => String(txt || '').toLowerCase().normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '').replace(/ /g, '-');
+
+        const tipoBadge = `<span class="historial-tipo historial-tipo-${slug(pedido.tipo)}">${esc(pedido.tipo)}</span>`;
+        const estadoBadge = pedido.estado
+            ? `<span class="pedido-estado pedido-estado-${slug(pedido.estado)}">${esc(pedido.estado)}</span>`
+            : '';
+
+        const platos = pedido.items.filter(it => it.categoria === 'Plato');
+        const bebidas = pedido.items.filter(it => it.categoria === 'Bebida');
+
+        const renderItems = (items) => items.map(it => {
+            const precioStr = precios && it.precio > 0
+                ? `<span class="historial-item-precio">$${it.precio.toLocaleString('es-CO')}</span>`
+                : '';
+            const modStr = it.modificaciones ? `<div style="font-size:0.8rem;color:#6b8fa3;margin-left:25px;">${esc(it.modificaciones)}</div>` : '';
+            return `<div class="historial-item-wrapper" style="display:flex; flex-direction:column; gap:2px; margin-bottom:4px;">
+                <div class="historial-item">
+                    <span class="historial-item-qty">${esc(it.qty)}×</span>
+                    <span class="historial-item-nombre">${esc(it.nombre)}</span>
+                    ${precioStr}
+                </div>
+                ${modStr}
+            </div>`;
+        }).join('');
+
+        const separador = (platos.length > 0 && bebidas.length > 0)
+            ? '<div class="historial-items-divider"></div>'
+            : '';
+
+        const domicilioHTML = (pedido.tipo === 'Domicilio' && pedido.domicilioPara)
+            ? `<div class="historial-domicilio">
+                   <span><strong>${esc(pedido.domicilioPara)}</strong> — ${esc(pedido.domicilioQuien)}</span>
+               </div>`
+            : '';
+
+        const meseroHTML = pedido.mesero
+            ? `<div class="pedido-mesero">Registró: ${esc(pedido.mesero)}</div>`
+            : '';
+
+        const totalStr = precios && pedido.total > 0
+            ? `<div class="historial-total">Total: $${pedido.total.toLocaleString('es-CO')}</div>`
+            : '';
+
+        card.innerHTML = `
+            <div class="historial-card-header">
+                <div class="historial-id-hora">
+                    <span class="historial-id">${esc(pedido.idPedido)}</span>
+                    <span class="historial-hora">${esc(hora)}</span>
+                </div>
+                <div class="pedido-badges">${estadoBadge}${tipoBadge}</div>
+            </div>
+            <div class="historial-items">${renderItems(platos) + separador + renderItems(bebidas)}</div>
+            ${domicilioHTML}
+            ${meseroHTML}
+            ${totalStr}
+            ${acciones}`;
+
+        return card;
+    },
+};
+
+const cocina = {
+    _timer: null,
+    _pedidos: [],
+
+    abrir() {
+        if (!puede('cocina')) return;
+        state.currentView = 'cocina';
+        app._mostrarVista('cocina-view');
+        document.getElementById('btn-historial').style.display = 'none';
+        document.getElementById('btn-toggle').style.display = 'none';
+        document.getElementById('header-title').innerText = 'Cocina · Pedidos de hoy';
+
+        cocina.detener();
+        cocina.cargar();
+        cocina._timer = setInterval(() => cocina.cargar(true), CONFIG.COCINA_REFRESH_MS);
+    },
+
+    detener() {
+        if (cocina._timer) clearInterval(cocina._timer);
+        cocina._timer = null;
+    },
+
+    async cargar(silencioso = false) {
+        const container = document.getElementById('cocina-container');
+        if (!silencioso) container.innerHTML = '<div class="historial-empty">Cargando...</div>';
+        try {
+            cocina._pedidos = await pedidosDelDia.obtener();
+            cocina.renderizar();
+        } catch (e) {
+            if (!silencioso) container.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
+            console.error(e);
+        }
+    },
+
+    renderizar() {
+        const container = document.getElementById('cocina-container');
+        container.innerHTML = '';
+
+        // Activos del mas antiguo al mas nuevo; listos al final
+        const activos = cocina._pedidos.filter(p => p.estado !== 'Listo').reverse();
+        const listos = cocina._pedidos.filter(p => p.estado === 'Listo');
+
+        if (activos.length === 0) {
+            container.innerHTML = '<div class="historial-empty">No hay pedidos pendientes.</div>';
+        }
+
+        activos.forEach(p => {
+            const siguiente = ESTADOS_PEDIDO[ESTADOS_PEDIDO.indexOf(p.estado) + 1];
+            const etiqueta = siguiente === 'Listo' ? 'Marcar listo' : 'Empezar preparación';
+            const acciones = siguiente
+                ? `<button class="btn-estado" data-id="${esc(p.uuid)}" data-estado="${esc(siguiente)}">${etiqueta}</button>`
+                : '';
+            container.appendChild(pedidosDelDia.crearTarjeta(p, { precios: false, acciones }));
+        });
+
+        if (listos.length > 0) {
+            const titulo = document.createElement('div');
+            titulo.className = 'section-label';
+            titulo.innerText = `Listos (${listos.length})`;
+            container.appendChild(titulo);
+            listos.forEach(p => {
+                const card = pedidosDelDia.crearTarjeta(p, { precios: false });
+                card.classList.add('pedido-listo');
+                container.appendChild(card);
+            });
+        }
+
+        container.querySelectorAll('.btn-estado').forEach(btn => {
+            btn.addEventListener('click', () => cocina.cambiarEstado(btn.dataset.id, btn.dataset.estado, btn));
+        });
+    },
+
+    async cambiarEstado(id, estado, btn) {
+        btn.disabled = true;
+        const { error } = await supabaseClient
+            .from('customer_orders')
+            .update({ order_status: estado, updated_at: new Date().toISOString() })
+            .eq('id', id);
+        if (error) {
+            btn.disabled = false;
+            ui.alert('Error', 'No se pudo actualizar el pedido. Verifica tu conexión.');
+            console.error(error);
+            return;
+        }
+        const pedido = cocina._pedidos.find(p => p.uuid === id);
+        if (pedido) pedido.estado = estado;
+        cocina.renderizar();
     },
 };
 
@@ -1041,6 +1235,31 @@ const ui = {
             };
 
             btnConfirm.onclick = close;
+        });
+    },
+
+    async confirmar(titulo, mensaje) {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById('modal-overlay');
+            const btnCancel = document.getElementById('btn-modal-cancel');
+            const btnConfirm = document.getElementById('btn-modal-confirm');
+
+            document.getElementById('modal-title').innerText = titulo;
+            document.getElementById('modal-message').innerText = mensaje || '';
+            document.getElementById('modal-input').style.display = 'none';
+            btnCancel.style.display = 'block';
+            btnConfirm.innerText = 'Sí, continuar';
+            overlay.style.display = 'flex';
+
+            const close = (val) => {
+                overlay.style.display = 'none';
+                btnConfirm.onclick = null;
+                btnCancel.onclick = null;
+                resolve(val);
+            };
+
+            btnConfirm.onclick = () => close(true);
+            btnCancel.onclick = () => close(false);
         });
     },
 };

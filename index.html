@@ -12,10 +12,26 @@
 
     <div id="loading-overlay">Cargando...</div>
 
-    <div id="home-view">
+    <div id="login-view" style="display:none;">
+        <div class="home-title">Registro de Pedidos</div>
+        <div class="home-subtitle">Inicia sesión para continuar</div>
+        <form id="login-form" class="login-form">
+            <input type="text" id="login-usuario" class="domicilio-input" placeholder="Usuario"
+                autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+            <input type="password" id="login-clave" class="domicilio-input" placeholder="Contraseña"
+                autocomplete="current-password" required>
+            <button type="submit" class="btn-action" id="btn-login">ENTRAR</button>
+        </form>
+    </div>
+
+    <div id="home-view" style="display:none;">
+        <div class="user-bar">
+            <span class="user-info" id="user-info"></span>
+            <button class="btn-back" id="btn-logout">Cerrar sesión</button>
+        </div>
         <div class="home-title">Registro de Pedidos</div>
         <div class="home-subtitle">Que servicio vas a registrar?</div>
-        <div class="home-buttons">
+        <div class="home-buttons" id="home-buttons-servicio">
             <button class="btn-home" id="btn-home-desayuno">
                 <span class="btn-home-label">Desayuno</span>
             </button>
@@ -23,7 +39,12 @@
                 <span class="btn-home-label">Almuerzo</span>
             </button>
         </div>
-        <div class="home-config-links">
+        <div class="home-buttons" id="home-buttons-cocina">
+            <button class="btn-home" id="btn-home-cocina">
+                <span class="btn-home-label">Cocina</span>
+            </button>
+        </div>
+        <div class="home-config-links" id="home-config-links">
             <button class="btn-config-link" id="btn-config-desayuno">Configurar Desayuno</button>
             <button class="btn-config-link" id="btn-config-almuerzo">Configurar Almuerzo</button>
         </div>
@@ -43,7 +64,7 @@
     <div id="pos-view" style="display:none;">
 
         <div class="tipo-container">
-            <button class="btn-tipo active" id="btn-salon">Salon</button>
+            <button class="btn-tipo active" id="btn-salon">Salón</button>
             <button class="btn-tipo" id="btn-domicilio">Domicilio</button>
             <button class="btn-tipo" id="btn-para-llevar">Para Llevar</button>
         </div>
@@ -85,6 +106,13 @@
         <button class="btn-action btn-action-secondary" id="btn-refresh-historial">Actualizar</button>
     </div>
 
+    <div id="cocina-view" style="display:none;">
+        <div id="cocina-container">
+            <div class="historial-empty">Cargando pedidos...</div>
+        </div>
+        <button class="btn-action btn-action-secondary" id="btn-refresh-cocina">Actualizar</button>
+    </div>
+
     <div id="admin-view" style="display:none;">
 
         <div class="admin-tabs">
@@ -119,7 +147,7 @@
 
     <div class="toast" id="toast">Operacion exitosa</div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.min.js"></script>
     <script src="supabase-client.js"></script>
 
     <script src="app.js"></script>
@@ -129,12 +157,16 @@
         document.getElementById('btn-config-desayuno').addEventListener('click', () => app.irAAdmin('Desayuno'));
         document.getElementById('btn-config-almuerzo').addEventListener('click', () => app.irAAdmin('Almuerzo'));
 
+        document.getElementById('btn-home-cocina').addEventListener('click', () => cocina.abrir());
+        document.getElementById('btn-refresh-cocina').addEventListener('click', () => cocina.cargar());
+
+        document.getElementById('login-form').addEventListener('submit', (e) => { e.preventDefault(); auth.login(); });
+        document.getElementById('btn-logout').addEventListener('click', () => auth.logout());
+
         document.getElementById('btn-back').addEventListener('click', () => app.volverAInicio());
-        document.getElementById('header-title').addEventListener('click', () => auth.resetearClave());
-        document.querySelector('.home-title').addEventListener('click', () => auth.resetearClave());
         document.getElementById('btn-toggle').addEventListener('click', () => ui.toggleView());
 
-        document.getElementById('btn-salon').addEventListener('click', () => pos.selectTipo('Salon'));
+        document.getElementById('btn-salon').addEventListener('click', () => pos.selectTipo('Salón'));
         document.getElementById('btn-domicilio').addEventListener('click', () => pos.selectTipo('Domicilio'));
         document.getElementById('btn-para-llevar').addEventListener('click', () => pos.selectTipo('Para Llevar'));
         document.getElementById('btn-submit').addEventListener('click', () => pos.registrarPedido());
