@@ -45,6 +45,11 @@
                 <span class="btn-home-label">Cocina</span>
             </button>
         </div>
+        <div class="home-buttons" id="home-buttons-resumen">
+            <button class="btn-home" id="btn-home-resumen">
+                <span class="btn-home-label">Resumen del día</span>
+            </button>
+        </div>
         <div class="home-buttons" id="home-buttons-despacho">
             <button class="btn-home" id="btn-home-despacho">
                 <span class="btn-home-label">Despacho</span>
@@ -137,6 +142,10 @@
         <button class="btn-action btn-action-secondary" id="btn-refresh-domicilios">Actualizar</button>
     </div>
 
+    <div id="resumen-view" style="display:none;">
+        <div id="resumen-container"></div>
+    </div>
+
     <div id="despacho-view" style="display:none;">
         <div class="clientes-layout">
             <div id="despacho-mapa"></div>
@@ -196,7 +205,7 @@
         <div class="custom-modal" id="custom-modal">
             <div class="custom-modal-title" id="modal-title">Atencion</div>
             <div class="custom-modal-body" id="modal-message">Mensaje</div>
-            <input type="password" id="modal-input" style="display:none;" placeholder="Ingresa valor..." />
+            <input type="text" id="modal-input" style="display:none;" placeholder="Escribe aquí..." autocomplete="off" />
             <div class="custom-modal-buttons">
                 <button class="btn-cancel" id="btn-modal-cancel" style="display:none;">Cancelar</button>
                 <button class="btn-confirm" id="btn-modal-confirm">Aceptar</button>
@@ -224,6 +233,7 @@
         document.getElementById('btn-home-domicilios').addEventListener('click', () => domicilios.abrir());
         document.getElementById('btn-config-clientes').addEventListener('click', () => clientesMapa.abrir());
         document.getElementById('btn-home-despacho').addEventListener('click', () => despacho.abrir());
+        document.getElementById('btn-home-resumen').addEventListener('click', () => resumen.abrir());
         document.getElementById('clientes-buscar').addEventListener('input', () => clientesMapa.renderLista());
         document.getElementById('clientes-filtro').addEventListener('change', () => clientesMapa.renderLista());
         document.getElementById('btn-nuevo-cliente').addEventListener('click', () => clientesMapa.nuevo());

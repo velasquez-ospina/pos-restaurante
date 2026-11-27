@@ -4,6 +4,7 @@ const CONFIG = {
     SYNC_INTERVAL_MS: 10_000,
     COCINA_REFRESH_MS: 15_000,
     DESPACHO_REFRESH_MS: 20_000,
+    RESUMEN_REFRESH_MS: 30_000,
     DOMINIO_USUARIOS: 'megadelicias.local',
     // Cra. 60 #45A-21 (coordenadas confirmadas por el negocio)
     LOCAL: { lat: 6.249576, lng: -75.577730 },
@@ -14,15 +15,15 @@ const CONFIG = {
 };
 
 const ROLES = {
-    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true, domicilios: false, despacho: true },
-    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false, domicilios: false, despacho: false },
-    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true, domicilios: false, despacho: false },
-    domiciliario: { nombre: 'Domiciliario', servicio: false, configurar: false, cocina: false, domicilios: true, despacho: false },
+    admin: { nombre: 'Administrador', servicio: true, configurar: true, cocina: true, domicilios: false, despacho: true, resumen: true, editarTodo: true },
+    mesero: { nombre: 'Mesero', servicio: true, configurar: false, cocina: false, domicilios: false, despacho: false, resumen: false, editarTodo: false },
+    cocina: { nombre: 'Cocina', servicio: false, configurar: false, cocina: true, domicilios: false, despacho: false, resumen: false, editarTodo: false },
+    domiciliario: { nombre: 'Domiciliario', servicio: false, configurar: false, cocina: false, domicilios: true, despacho: false, resumen: false, editarTodo: false },
 };
 
 const ESTADOS_COCINA = ['Pendiente', 'En preparación', 'Listo'];
 
-const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'despacho-view', 'clientes-view', 'admin-view'];
+const VISTAS = ['login-view', 'home-view', 'pos-view', 'historial-view', 'cocina-view', 'domicilios-view', 'despacho-view', 'resumen-view', 'clientes-view', 'admin-view'];
 
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -114,6 +115,7 @@ const app = {
         document.getElementById('home-buttons-cocina').style.display = rol.cocina ? 'flex' : 'none';
         document.getElementById('home-buttons-domicilios').style.display = rol.domicilios ? 'flex' : 'none';
         document.getElementById('home-buttons-despacho').style.display = rol.despacho ? 'flex' : 'none';
+        document.getElementById('home-buttons-resumen').style.display = rol.resumen ? 'flex' : 'none';
         document.getElementById('home-subtitle').style.display = rol.servicio ? 'block' : 'none';
         document.getElementById('home-config-links').style.display = rol.configurar ? 'flex' : 'none';
         app._mostrarVista('home-view');
@@ -142,6 +144,7 @@ const app = {
         cocina.detener();
         domicilios.detener();
         despacho.detener();
+        resumen.detener();
         historial.reset();
         app.mostrarInicio();
     },
@@ -201,6 +204,7 @@ const auth = {
         cocina.detener();
         domicilios.detener();
         despacho.detener();
+        resumen.detener();
         document.getElementById('login-clave').value = '';
         app._mostrarVista('login-view');
     },
@@ -221,6 +225,8 @@ const auth = {
                 await ui.alert('Inicio de sesión', msg);
                 return;
             }
+            // No dejar la contrasena escrita en el formulario oculto mientras se usa la app
+            document.getElementById("login-clave").value = "";
             await auth._cargarPerfil(data.user);
         } finally {
             ui.mostrarCarga(false);
@@ -825,11 +831,12 @@ const pos = {
 
         // Servicio del pedido segun sus platos (los de bebidas sirven en ambos)
         const servicio = pedido.items.map(it => it.servicio).find(s => s === 'Desayuno' || s === 'Almuerzo')
-            || state.tipoServicio;
+            || state.tipoServicio || 'Almuerzo';
 
         historial.reset();
-        if (servicio !== state.tipoServicio) {
+        if (servicio !== state.tipoServicio || state.currentView !== 'pos') {
             state.tipoServicio = servicio;
+            state.currentView = 'pos';
             await api.obtenerDatosBackend();
         }
 
@@ -941,13 +948,15 @@ const pos = {
         }
         if (state.editando?.uuid === pedido.uuid) pos.descartarEdicion();
         ui.mostrarToast('Pedido cancelado');
-        historial.cargar();
+        if (state.currentView === 'resumen') resumen.cargar(true); else historial.cargar();
     },
 };
 
 // Un pedido se puede editar/cancelar mientras no haya salido ni este asignado a un domiciliario
-const pedidoEditable = (p) => !!p.uuid && !p.deliveryPersonId
-    && ['Pendiente', 'En preparación', 'Listo'].includes(p.estado);
+// El admin puede corregir cualquier pedido no cancelado
+const pedidoEditable = (p) => !!p.uuid && (puede('editarTodo')
+    ? p.estado !== 'Cancelado'
+    : !p.deliveryPersonId && ['Pendiente', 'En preparación', 'Listo'].includes(p.estado));
 
 const domicilioAutocomplete = {
     init() {
@@ -1154,7 +1163,7 @@ const pedidosDelDia = {
             .select('*, creador:profiles!created_by(nombre), domiciliario:profiles!delivery_person_id(nombre), cliente:clients(id, name, lat, lng), order_line_items(*, menu_dishes(name, ocupa_bandeja, menu_sections(name)))')
             .gte('created_at', inicio.toISOString())
             .order('created_at', { ascending: false })
-            .limit(300);
+            .limit(1000);
 
         if (error) throw error;
 
@@ -1521,6 +1530,265 @@ const disponibilidad = {
         }
         ui.mostrarToast(fila.disponible ? 'Disponible' : 'No disponible');
         return true;
+    },
+};
+
+const resumen = {
+    _timer: null,
+    _pedidos: [],
+
+    abrir() {
+        if (!puede('resumen')) return;
+        state.currentView = 'resumen';
+        app._mostrarVista('resumen-view');
+        document.getElementById('btn-historial').style.display = 'none';
+        document.getElementById('btn-toggle').style.display = 'none';
+        document.getElementById('header-title').innerText = 'Resumen del día';
+        resumen.detener();
+        resumen.cargar();
+        resumen._timer = setInterval(() => resumen.cargar(true), CONFIG.RESUMEN_REFRESH_MS);
+    },
+
+    detener() {
+        if (resumen._timer) clearInterval(resumen._timer);
+        resumen._timer = null;
+    },
+
+    async cargar(silencioso = false) {
+        const cont = document.getElementById('resumen-container');
+        if (!silencioso) cont.innerHTML = '<div class="historial-empty">Cargando...</div>';
+        try {
+            resumen._pedidos = await pedidosDelDia.obtener();
+            resumen.renderizar();
+        } catch (e) {
+            if (!silencioso) cont.innerHTML = '<div class="historial-empty">Sin conexión a Supabase.</div>';
+            console.error(e);
+        }
+    },
+
+    _calcular(pedidos, ahora) {
+        const minutos = (a, b) => (b - a) / 60000;
+        const mediana = (xs) => {
+            if (!xs.length) return null;
+            const s = xs.slice().sort((a, b) => a - b), m = Math.floor(s.length / 2);
+            return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+        };
+        const agrupar = (lista, clave, valor) => {
+            const m = new Map();
+            lista.forEach(x => { const k = clave(x); if (k == null) return; const v = m.get(k) || { nombre: k, n: 0, valor: 0 }; v.n++; v.valor += valor(x); m.set(k, v); });
+            return [...m.values()];
+        };
+        const servicioDe = (p) => p.items.map(it => it.servicio).find(s => s === 'Desayuno' || s === 'Almuerzo') || 'Solo bebidas';
+
+        const validos = pedidos.filter(p => p.estado !== 'Cancelado');
+        const cancelados = pedidos.filter(p => p.estado === 'Cancelado');
+        const ventas = validos.reduce((a, p) => a + (p.total || 0), 0);
+
+        const tiemposCocina = validos.filter(p => p.listoMs).map(p => minutos(p.creadoMs, p.listoMs)).filter(x => x >= 0 && x < 240);
+        const domicilios = validos.filter(p => p.tipo === 'Domicilio');
+        const entregados = domicilios.filter(p => p.entregadoMs);
+        const tiemposEntrega = entregados.map(p => minutos(p.creadoMs, p.entregadoMs)).filter(x => x >= 0 && x < 480);
+        const aTiempo = tiemposEntrega.filter(x => x <= DESPACHO_CFG.META_MIN).length;
+
+        // "Activo" = aun no termina: domicilios hasta entregarse; salon/para llevar hasta estar listos
+        const activo = (p) => p.tipo === 'Domicilio' ? p.estado !== 'Entregado' : ['Pendiente', 'En preparación'].includes(p.estado);
+        const activos = validos.filter(activo);
+        const demorados = activos.filter(p => minutos(p.creadoMs, ahora) > DESPACHO_CFG.META_MIN)
+            .sort((a, b) => a.creadoMs - b.creadoMs);
+
+        // Ventas por hora (hora local del dispositivo)
+        const horas = new Map();
+        validos.forEach(p => {
+            const h = new Date(p.creadoMs).getHours();
+            const v = horas.get(h) || { hora: h, n: 0, valor: 0 };
+            v.n++; v.valor += p.total || 0; horas.set(h, v);
+        });
+        const hs = [...horas.keys()];
+        const porHora = [];
+        if (hs.length) for (let h = Math.min(...hs); h <= Math.max(...hs); h++) porHora.push(horas.get(h) || { hora: h, n: 0, valor: 0 });
+
+        // Productos (por plato, sumando unidades)
+        const productos = new Map();
+        validos.forEach(p => p.items.forEach(it => {
+            const k = it.categoria + '|' + it.nombre;
+            const v = productos.get(k) || { nombre: it.nombre, categoria: it.categoria, n: 0, valor: 0 };
+            v.n += it.qty; v.valor += it.qty * (it.precio || 0); productos.set(k, v);
+        }));
+        const top = (cat, k) => [...productos.values()].filter(x => x.categoria === cat).sort((a, b) => b.n - a.n).slice(0, k);
+
+        const porDomiciliario = agrupar(entregados, p => p.domiciliario || null, p => minutos(p.creadoMs, p.entregadoMs))
+            .map(d => ({ ...d, promedio: d.valor / d.n })).sort((a, b) => b.n - a.n);
+
+        return {
+            ventas, pedidos: validos.length, ticket: validos.length ? ventas / validos.length : 0,
+            cancelados: cancelados.length,
+            modificados: validos.filter(p => p.modificadoMs).length,
+            cocinaMediana: mediana(tiemposCocina),
+            entregados: entregados.length, domicilios: domicilios.length,
+            entregaMediana: mediana(tiemposEntrega),
+            pctATiempo: tiemposEntrega.length ? Math.round(100 * aTiempo / tiemposEntrega.length) : null,
+            ahora: {
+                cocina: validos.filter(p => ['Pendiente', 'En preparación'].includes(p.estado)).length,
+                porDespachar: domicilios.filter(p => p.estado === 'Listo').length,
+                sinAsignar: domicilios.filter(p => !p.deliveryPersonId && p.estado !== 'Entregado').length,
+                enCamino: domicilios.filter(p => p.estado === 'En camino').length,
+            },
+            demorados,
+            porHora,
+            porTipo: agrupar(validos, p => p.tipo, p => p.total || 0).sort((a, b) => b.valor - a.valor),
+            porServicio: agrupar(validos, servicioDe, p => p.total || 0).sort((a, b) => b.valor - a.valor),
+            topPlatos: top('Plato', 8),
+            topBebidas: top('Bebida', 5),
+            porMesero: agrupar(validos, p => p.mesero || 'Sin registrar', p => p.total || 0).sort((a, b) => b.valor - a.valor),
+            porDomiciliario,
+        };
+    },
+
+    renderizar() {
+        const ahora = Date.now();
+        const r = resumen._calcular(resumen._pedidos, ahora);
+        const pesos = (v) => '$' + Math.round(v).toLocaleString('es-CO');
+        const min = (v) => v == null ? '—' : Math.round(v) + ' min';
+        const hora = (ms) => new Date(ms).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
+        const etiquetaHora = (h) => (h % 12 || 12) + (h < 12 ? ' a. m.' : ' p. m.');
+        const horaCorta = (h) => (h % 12 || 12) + (h < 12 ? 'a' : 'p');
+
+        const tile = (titulo, valor, detalle = '', alerta = false) => `
+            <div class="kpi ${alerta ? 'kpi-alerta' : ''}">
+                <div class="kpi-titulo">${titulo}</div>
+                <div class="kpi-valor">${valor}</div>
+                ${detalle ? `<div class="kpi-detalle">${detalle}</div>` : ''}
+            </div>`;
+
+        // Barras horizontales de una sola serie: etiqueta, barra y valor visible
+        const barras = (filas, valorDe, textoDe, tituloDe) => {
+            if (!filas.length) return '<div class="grafico-vacio">Sin datos todavía</div>';
+            const maximo = Math.max(...filas.map(valorDe), 1);
+            return `<div class="barras-h">${filas.map(f => `
+                <div class="barra-fila" title="${esc(tituloDe(f))}">
+                    <span class="barra-etiqueta">${esc(f.nombre)}</span>
+                    <span class="barra-pista"><span class="barra" style="width:${Math.max(2, 100 * valorDe(f) / maximo)}%"></span></span>
+                    <span class="barra-valor">${esc(textoDe(f))}</span>
+                </div>`).join('')}</div>`;
+        };
+
+        // Barras verticales por hora
+        const maxHora = Math.max(...r.porHora.map(h => h.valor), 1);
+        const graficoHoras = r.porHora.length ? `
+            <div class="barras-v">${r.porHora.map(h => `
+                <div class="col" title="${etiquetaHora(h.hora)}: ${h.n} pedido(s) · ${pesos(h.valor)}">
+                    <div class="col-area">
+                        <span class="col-valor">${h.n || ''}</span>
+                        <span class="col-barra" style="height:${h.valor ? Math.max(3, 100 * h.valor / maxHora) : 0}%"></span>
+                    </div>
+                    <span class="col-etiqueta">${horaCorta(h.hora)}</span>
+                </div>`).join('')}</div>
+            <div class="grafico-nota">Altura = ventas de esa hora · número = pedidos</div>`
+            : '<div class="grafico-vacio">Sin datos todavía</div>';
+
+        const demorados = r.demorados.length
+            ? r.demorados.map(p => `
+                <div class="demorado">
+                    <span class="demorado-min">${Math.round((ahora - p.creadoMs) / 60000)} min</span>
+                    <span class="demorado-info"><strong>${esc(p.tipo === 'Domicilio' ? p.destino : p.tipo)}</strong> · ${esc(p.estado)}
+                        ${p.domiciliario ? ' · ' + esc(p.domiciliario) : ''} · ${esc(p.idPedido)}</span>
+                </div>`).join('')
+            : '<div class="grafico-vacio">Ningún pedido lleva más de 30 min.</div>';
+
+        const tabla = (cabeceras, filas) => filas.length
+            ? `<table class="tabla-resumen"><thead><tr>${cabeceras.map(c => `<th>${c}</th>`).join('')}</tr></thead>
+               <tbody>${filas.map(f => `<tr>${f.map(c => `<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table>`
+            : '<div class="grafico-vacio">Sin datos todavía</div>';
+
+        document.getElementById('resumen-container').innerHTML = `
+            <div class="resumen-actualizado">Actualizado ${hora(ahora)} · se actualiza solo cada 30 s</div>
+
+            <div class="kpis">
+                ${tile('Ventas', pesos(r.ventas), `${r.pedidos} pedidos`)}
+                ${tile('Ticket promedio', pesos(r.ticket))}
+                ${tile('Domicilios entregados', `${r.entregados} / ${r.domicilios}`,
+                    r.pctATiempo == null ? 'sin entregas aún' : `${r.pctATiempo}% en ≤ ${DESPACHO_CFG.META_MIN} min · mediana ${min(r.entregaMediana)}`,
+                    r.pctATiempo != null && r.pctATiempo < 80)}
+                ${tile('Tiempo de cocina', min(r.cocinaMediana), 'mediana, de pedido a listo')}
+                ${tile('Cancelados', r.cancelados, `${r.modificados} modificados`)}
+            </div>
+
+            <div class="resumen-grid">
+                <section class="panel-resumen">
+                    <h3>Ahora mismo</h3>
+                    <div class="ahora-chips">
+                        <span><strong>${r.ahora.cocina}</strong> en cocina</span>
+                        <span><strong>${r.ahora.porDespachar}</strong> domicilios listos</span>
+                        <span class="${r.ahora.sinAsignar ? 'chip-alerta' : ''}"><strong>${r.ahora.sinAsignar}</strong> sin domiciliario</span>
+                        <span><strong>${r.ahora.enCamino}</strong> en camino</span>
+                    </div>
+                    <h4>Pedidos con más de ${DESPACHO_CFG.META_MIN} min sin terminar</h4>
+                    ${demorados}
+                </section>
+
+                <section class="panel-resumen">
+                    <h3>Ventas por hora</h3>
+                    ${graficoHoras}
+                </section>
+
+                <section class="panel-resumen">
+                    <h3>Platos más vendidos</h3>
+                    ${barras(r.topPlatos, f => f.n, f => `${f.n}`, f => `${f.nombre}: ${f.n} unidades · ${pesos(f.valor)}`)}
+                    <h4>Bebidas</h4>
+                    ${barras(r.topBebidas, f => f.n, f => `${f.n}`, f => `${f.nombre}: ${f.n} unidades`)}
+                </section>
+
+                <section class="panel-resumen">
+                    <h3>Ventas por tipo de pedido</h3>
+                    ${barras(r.porTipo, f => f.valor, f => pesos(f.valor), f => `${f.nombre}: ${f.n} pedidos · ${pesos(f.valor)}`)}
+                    <h4>Por servicio</h4>
+                    ${barras(r.porServicio, f => f.valor, f => pesos(f.valor), f => `${f.nombre}: ${f.n} pedidos · ${pesos(f.valor)}`)}
+                </section>
+
+                <section class="panel-resumen">
+                    <h3>Meseros</h3>
+                    ${tabla(['Mesero', 'Pedidos', 'Ventas'], r.porMesero.map(m => [esc(m.nombre), m.n, pesos(m.valor)]))}
+                </section>
+
+                <section class="panel-resumen">
+                    <h3>Domiciliarios</h3>
+                    ${tabla(['Domiciliario', 'Entregas', 'Tiempo promedio'],
+                        r.porDomiciliario.map(d => [esc(d.nombre), d.n, min(d.promedio)]))}
+                </section>
+            </div>
+
+            <section class="panel-resumen">
+                <h3>Pedidos de hoy</h3>
+                <input type="search" id="resumen-buscar" class="domicilio-input" placeholder="Buscar por destino, cliente, código o mesero..." autocomplete="off">
+                <div id="resumen-pedidos" class="resumen-pedidos"></div>
+            </section>`;
+
+        const buscar = document.getElementById('resumen-buscar');
+        buscar.value = resumen._busqueda || '';
+        buscar.addEventListener('input', () => { resumen._busqueda = buscar.value; resumen._renderPedidos(); });
+        resumen._renderPedidos();
+    },
+
+    _renderPedidos() {
+        const cont = document.getElementById('resumen-pedidos');
+        const q = (resumen._busqueda || '').trim().toLowerCase();
+        const lista = resumen._pedidos.filter(p => !q || [p.destino, p.domicilioQuien, p.idPedido, p.mesero, p.tipo, p.estado]
+            .some(t => (t || '').toLowerCase().includes(q)));
+        cont.innerHTML = lista.length ? '' : '<div class="grafico-vacio">No hay pedidos que coincidan.</div>';
+        lista.forEach(p => {
+            const acciones = pedidoEditable(p)
+                ? `<div class="historial-acciones">
+                       <button class="btn-editar-pedido" data-editar="${esc(p.uuid)}">Editar</button>
+                       <button class="btn-cancelar-pedido" data-cancelar="${esc(p.uuid)}">Cancelar pedido</button>
+                   </div>` : '';
+            cont.appendChild(pedidosDelDia.crearTarjeta(p, { precios: true, acciones }));
+        });
+        const porId = (id) => resumen._pedidos.find(p => p.uuid === id);
+        cont.querySelectorAll('[data-editar]').forEach(b => b.addEventListener('click', () => {
+            resumen.detener();
+            pos.editarPedido(porId(b.dataset.editar));
+        }));
+        cont.querySelectorAll('[data-cancelar]').forEach(b => b.addEventListener('click', () => pos.cancelarPedido(porId(b.dataset.cancelar))));
     },
 };
 
@@ -2202,6 +2470,8 @@ const ui = {
             titleEl.innerText = titulo;
             msgEl.innerText = mensaje || '';
             inputEl.type = tipoInput;
+            // Que el navegador no lo trate como usuario/contrasena (evita "¿Guardar contrasena?")
+            inputEl.setAttribute("autocomplete", tipoInput === "password" ? "new-password" : "off");
             inputEl.value = valorInicial;
             inputEl.style.display = 'block';
             btnCancel.style.display = 'block';
