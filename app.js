@@ -65,6 +65,7 @@ const _state = {
     listaClientes: [],
 
     historialPedidos: [],
+    editando: null,   // { uuid, idPedido } cuando el POS esta editando un pedido ya registrado
 
     domicilioPara: '',
     domicilioQuien: '',
@@ -137,6 +138,7 @@ const app = {
         state.tipoServicio = null;
         state.currentView = 'home';
         state.tipoActual = 'Salón';
+        pos._salirEdicion();
         cocina.detener();
         domicilios.detener();
         despacho.detener();
@@ -762,6 +764,11 @@ const pos = {
             domicilio_quien: state.domicilioQuien || null,
         };
 
+        if (state.editando) {
+            await pos._guardarEdicion(payload);
+            return;
+        }
+
         const currentId = "PENDIENTE";
         const pedidoOptimista = {
             idPedido: currentId,
@@ -798,7 +805,149 @@ const pos = {
 
         cola.guardar(payload);
     },
+
+    _limpiarFormulario(tipo = 'Salón') {
+        pos.renderizar();
+        pos.renderizarBebidas();
+        pos.selectTipo(tipo);
+        state.domicilioPara = '';
+        state.domicilioQuien = '';
+        const inputPara = document.getElementById('domicilio-para');
+        const inputQuien = document.getElementById('domicilio-quien');
+        if (inputPara) inputPara.value = '';
+        if (inputQuien) inputQuien.value = '';
+        domicilioAutocomplete.limpiarSugerencias();
+    },
+
+    // Carga un pedido ya registrado en el POS para modificarlo
+    async editarPedido(pedido) {
+        if (!puede('servicio') || !pedido?.uuid) return;
+
+        // Servicio del pedido segun sus platos (los de bebidas sirven en ambos)
+        const servicio = pedido.items.map(it => it.servicio).find(s => s === 'Desayuno' || s === 'Almuerzo')
+            || state.tipoServicio;
+
+        historial.reset();
+        if (servicio !== state.tipoServicio) {
+            state.tipoServicio = servicio;
+            await api.obtenerDatosBackend();
+        }
+
+        // Buscar en el catalogo la variante exacta de cada linea (plato + modificaciones)
+        const faltantes = [];
+        const lineas = [];
+        pedido.items.forEach(it => {
+            const esBebida = it.categoria === 'Bebida';
+            const catalogo = esBebida ? state.catalogoBebidas : state.catalogoPlatos;
+            const mods = it.modificaciones || '';
+            const variante = catalogo.find(v => v.id === it.dishId && (v.mods || []).join(', ') === mods)
+                || catalogo.find(v => v.id === it.dishId);
+            if (!variante) { faltantes.push(it.nombre); return; }
+            // Si el plato ya no esta en el menu de hoy, mostrarlo igual para poder conservarlo
+            const hoy = esBebida ? state.menuBebidasHoy : state.menuPlatosHoy;
+            if (!hoy.includes(variante.nombre)) hoy.push(variante.nombre);
+            lineas.push({ variante, qty: it.qty, esBebida });
+        });
+
+        pos._limpiarFormulario(pedido.tipo);
+        if (pedido.tipo === 'Domicilio') {
+            document.getElementById('domicilio-para').value = pedido.domicilioPara || '';
+            document.getElementById('domicilio-quien').value = pedido.domicilioQuien || '';
+        }
+        lineas.forEach(({ variante, qty, esBebida }) => {
+            const mapa = esBebida ? state.cantidadesBebidas : state.cantidadesPlatos;
+            mapa[variante.nombre] = (mapa[variante.nombre] || 0) + qty;
+            const btn = [...document.querySelectorAll('.btn-qty')].find(b => b.dataset.nombre === variante.nombre);
+            pos._actualizarCantidad(mapa, variante.nombre, 0, btn?.dataset.target);
+        });
+
+        state.editando = { uuid: pedido.uuid, idPedido: pedido.idPedido };
+        pos._mostrarEdicion();
+
+        if (faltantes.length) {
+            ui.alert('Productos no encontrados',
+                `Estos productos ya no existen en el menú y se quitarán si guardas: ${faltantes.join(', ')}`);
+        }
+    },
+
+    _mostrarEdicion() {
+        const banner = document.getElementById('edicion-banner');
+        document.getElementById('edicion-texto').innerText = `Editando pedido ${state.editando.idPedido}`;
+        banner.style.display = 'flex';
+        document.getElementById('btn-submit').innerText = 'GUARDAR CAMBIOS';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    },
+
+    _salirEdicion() {
+        state.editando = null;
+        const banner = document.getElementById('edicion-banner');
+        if (banner) banner.style.display = 'none';
+        const btn = document.getElementById('btn-submit');
+        if (btn) btn.innerText = 'REGISTRAR PEDIDO';
+    },
+
+    descartarEdicion() {
+        pos._salirEdicion();
+        pos._limpiarFormulario('Salón');
+    },
+
+    async _guardarEdicion(payload) {
+        const btn = document.getElementById('btn-submit');
+        btn.disabled = true;
+        try {
+            const { error } = await supabaseClient.rpc('editar_pedido', {
+                p_id: state.editando.uuid,
+                p_tipo: payload.tipo,
+                p_cliente: payload.domicilio_quien || '',
+                p_destino: payload.domicilio_para || '',
+                p_items: payload.carrito.map(c => ({
+                    menu_dish_id: c.dish_id,
+                    quantity: c.qty,
+                    unit_price: c.precio,
+                    modifications_selected: c.mods && c.mods.length > 0 ? c.mods.join(', ') : null,
+                })),
+            });
+            if (error) {
+                // Las reglas (pedido ya en camino, asignado, de otro dia...) vienen del servidor
+                const reglas = ['55000', '22023', '42501', 'P0002'];
+                await ui.alert('No se pudo guardar', reglas.includes(error.code)
+                    ? error.message
+                    : 'Error de conexión. Verifica el internet e intenta de nuevo.');
+                console.error(error);
+                return;
+            }
+            ui.mostrarToast('Pedido actualizado');
+            const tipo = payload.tipo;
+            pos._salirEdicion();
+            pos._limpiarFormulario(tipo === 'Domicilio' ? 'Domicilio' : 'Salón');
+            if (historial._visible) historial.cargar();
+        } finally {
+            btn.disabled = false;
+        }
+    },
+
+    async cancelarPedido(pedido) {
+        const ok = await ui.confirmar('Cancelar pedido',
+            `¿Cancelar el pedido ${pedido.idPedido}${pedido.domicilioPara ? ' para ' + pedido.domicilioPara : ''}? Queda registrado como cancelado.`);
+        if (!ok) return;
+        const { error } = await supabaseClient.rpc('cancelar_pedido', { p_id: pedido.uuid });
+        if (error) {
+            const reglas = ['55000', '42501', 'P0002'];
+            await ui.alert('No se pudo cancelar', reglas.includes(error.code)
+                ? error.message
+                : 'Error de conexión. Verifica el internet e intenta de nuevo.');
+            console.error(error);
+            return;
+        }
+        if (state.editando?.uuid === pedido.uuid) pos.descartarEdicion();
+        ui.mostrarToast('Pedido cancelado');
+        historial.cargar();
+    },
 };
+
+// Un pedido se puede editar/cancelar mientras no haya salido ni este asignado a un domiciliario
+const pedidoEditable = (p) => !!p.uuid && !p.deliveryPersonId
+    && ['Pendiente', 'En preparación', 'Listo'].includes(p.estado);
 
 const domicilioAutocomplete = {
     init() {
@@ -971,8 +1120,20 @@ const historial = {
         }
 
         state.historialPedidos.forEach(pedido => {
-            container.appendChild(pedidosDelDia.crearTarjeta(pedido, { precios: true }));
+            const acciones = puede('servicio') && pedidoEditable(pedido)
+                ? `<div class="historial-acciones">
+                       <button class="btn-editar-pedido" data-editar="${esc(pedido.uuid)}">Editar</button>
+                       <button class="btn-cancelar-pedido" data-cancelar="${esc(pedido.uuid)}">Cancelar pedido</button>
+                   </div>`
+                : '';
+            container.appendChild(pedidosDelDia.crearTarjeta(pedido, { precios: true, acciones }));
         });
+
+        const buscar = (id) => state.historialPedidos.find(p => p.uuid === id);
+        container.querySelectorAll('[data-editar]').forEach(b =>
+            b.addEventListener('click', () => pos.editarPedido(buscar(b.dataset.editar))));
+        container.querySelectorAll('[data-cancelar]').forEach(b =>
+            b.addEventListener('click', () => pos.cancelarPedido(buscar(b.dataset.cancelar))));
     },
 
     reset() {
@@ -1013,6 +1174,8 @@ const pedidosDelDia = {
                 precio: Number(li.unit_price),
                 categoria: (li.menu_dishes?.menu_sections?.name || '').toLowerCase() === 'bebidas' ? 'Bebida' : 'Plato',
                 modificaciones: li.modifications_selected,
+                dishId: li.menu_dish_id,
+                servicio: li.menu_dishes?.menu_sections?.name || null,
             })),
             total: Number(o.total_amount),
             // Datos para despacho de domicilios
@@ -1024,6 +1187,7 @@ const pedidosDelDia = {
             listoMs: o.listo_at ? Date.parse(o.listo_at) : null,
             enCaminoMs: o.en_camino_at ? Date.parse(o.en_camino_at) : null,
             entregadoMs: o.entregado_at ? Date.parse(o.entregado_at) : null,
+            modificadoMs: o.modificado_at ? Date.parse(o.modificado_at) : null,
             unidades: o.order_line_items.reduce((n, li) =>
                 n + (li.menu_dishes && li.menu_dishes.ocupa_bandeja === false ? 0 : li.quantity), 0),
         }));
@@ -1074,7 +1238,10 @@ const pedidosDelDia = {
                </div>`
             : '';
 
-        const meseroHTML = [
+        const modificadoHTML = pedido.modificadoMs && pedido.estado !== 'Cancelado'
+            ? `<div class="tag-modificado">Modificado ${esc(new Date(pedido.modificadoMs).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }))}</div>`
+            : '';
+        const meseroHTML = modificadoHTML + [
             pedido.mesero ? `Registró: ${esc(pedido.mesero)}` : '',
             pedido.domiciliario ? `Domiciliario: ${esc(pedido.domiciliario)}` : '',
         ].filter(Boolean).map(t => `<div class="pedido-mesero">${t}</div>`).join('');
@@ -1141,10 +1308,24 @@ const cocina = {
 
         // Activos del mas antiguo al mas nuevo; listos al final
         const activos = cocina._pedidos.filter(p => ['Pendiente', 'En preparación'].includes(p.estado)).reverse();
-        const listos = cocina._pedidos.filter(p => !['Pendiente', 'En preparación'].includes(p.estado));
+        const listos = cocina._pedidos.filter(p => !['Pendiente', 'En preparación', 'Cancelado'].includes(p.estado));
+        const hace30 = Date.now() - 30 * 60000;
+        const cancelados = cocina._pedidos.filter(p => p.estado === 'Cancelado' && (p.modificadoMs || 0) >= hace30);
+
+        if (cancelados.length > 0) {
+            const titulo = document.createElement('div');
+            titulo.className = 'section-label section-cancelados';
+            titulo.innerText = `Cancelados hace poco (${cancelados.length}) · no preparar`;
+            container.appendChild(titulo);
+            cancelados.forEach(p => {
+                const card = pedidosDelDia.crearTarjeta(p, { precios: false });
+                card.classList.add('pedido-cancelado');
+                container.appendChild(card);
+            });
+        }
 
         if (activos.length === 0) {
-            container.innerHTML = '<div class="historial-empty">No hay pedidos pendientes.</div>';
+            container.insertAdjacentHTML('beforeend', '<div class="historial-empty">No hay pedidos pendientes.</div>');
         }
 
         activos.forEach(p => {
@@ -1250,7 +1431,7 @@ const domicilios = {
         });
 
         const pendientes = domicilios._pedidos
-            .filter(p => p.estado !== 'Entregado')
+            .filter(p => !['Entregado', 'Cancelado'].includes(p.estado))
             .sort((a, b) => (a.ordenRuta ?? 99) - (b.ordenRuta ?? 99) || a.creadoMs - b.creadoMs);
         const entregados = domicilios._pedidos.filter(p => p.estado === 'Entregado');
 
@@ -1434,7 +1615,7 @@ const despacho = {
         });
 
         const domiciliosHoy = pedidos.filter(p => p.tipo === 'Domicilio');
-        const activos = domiciliosHoy.filter(p => p.estado !== 'Entregado');
+        const activos = domiciliosHoy.filter(p => !['Entregado', 'Cancelado'].includes(p.estado));
         const cola = activos.filter(p => !p.deliveryPersonId);
 
         const repartidores = doms.map((d, i) => {
@@ -1837,7 +2018,10 @@ const clientesMapa = {
             : (c.direccion || '');
 
         panel.innerHTML = `
-            <div class="cs-nombre">${esc(c.name)}</div>
+            <div class="cs-titulo">
+                <div class="cs-nombre">${esc(c.name)}</div>
+                <button class="btn-link cs-editar" id="cs-editar-nombre">Editar nombre</button>
+            </div>
             <div class="cs-info">${esc(distancia)} · ${estado}</div>
             ${c.ubicacion_nota ? `<div class="cs-nota">${esc(c.ubicacion_nota)}</div>` : ''}
             <input type="text" id="cs-direccion" class="domicilio-input" data-id="${esc(c.id)}"
@@ -1848,6 +2032,7 @@ const clientesMapa = {
             </div>`;
 
         document.getElementById('cs-guardar').addEventListener('click', () => clientesMapa.guardar());
+        document.getElementById('cs-editar-nombre').addEventListener('click', () => clientesMapa.editarNombre());
         document.getElementById('cs-quitar')?.addEventListener('click', () => clientesMapa.quitar());
     },
 
@@ -1928,6 +2113,42 @@ const clientesMapa = {
         document.getElementById('clientes-mapa').scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
 
+    async editarNombre() {
+        const c = clientesMapa._seleccionado;
+        if (!c) return;
+        const respuesta = await ui.prompt('Editar nombre', 'Nuevo nombre del cliente:', 'text', 'Guardar', c.name);
+        const nombre = (respuesta || '').trim().replace(/\s+/g, ' ');
+        if (!nombre || nombre === c.name) return;
+
+        const normal = (t) => t.trim().toLowerCase();
+        const otro = clientesMapa._clientes.find(x => x.id !== c.id && normal(x.name) === normal(nombre));
+        if (otro) {
+            await ui.alert('Nombre en uso', `Ya existe otro cliente llamado "${otro.name}".`);
+            return;
+        }
+
+        const { error } = await supabaseClient
+            .from('clients')
+            .update({ name: nombre, updated_at: new Date().toISOString() })
+            .eq('id', c.id);
+        if (error) {
+            ui.alert('Error', 'No se pudo cambiar el nombre.');
+            console.error(error);
+            return;
+        }
+
+        const anterior = c.name;
+        c.name = nombre;
+        clientesMapa._clientes.sort((a, b) => a.name.localeCompare(b.name, 'es-CO'));
+        const i = state.listaClientes.indexOf(anterior);
+        if (i >= 0) state.listaClientes[i] = nombre; else state.listaClientes.push(nombre);
+
+        ui.mostrarToast('Nombre actualizado');
+        clientesMapa._renderPanel();
+        clientesMapa._renderMarcadores();
+        clientesMapa.renderLista();
+    },
+
     async quitar() {
         const c = clientesMapa._seleccionado;
         if (!c) return;
@@ -1969,7 +2190,7 @@ const ui = {
         overlay.style.display = mostrar ? 'flex' : 'none';
     },
 
-    async prompt(titulo, mensaje, tipoInput = 'text', textoBoton = 'Aceptar') {
+    async prompt(titulo, mensaje, tipoInput = 'text', textoBoton = 'Aceptar', valorInicial = '') {
         return new Promise((resolve) => {
             const overlay = document.getElementById('modal-overlay');
             const titleEl = document.getElementById('modal-title');
@@ -1981,12 +2202,13 @@ const ui = {
             titleEl.innerText = titulo;
             msgEl.innerText = mensaje || '';
             inputEl.type = tipoInput;
-            inputEl.value = '';
+            inputEl.value = valorInicial;
             inputEl.style.display = 'block';
             btnCancel.style.display = 'block';
             btnConfirm.innerText = textoBoton;
             overlay.style.display = 'flex';
             inputEl.focus();
+            inputEl.select();
 
             const close = (val) => {
                 overlay.style.display = 'none';

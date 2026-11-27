@@ -985,3 +985,28 @@ body {
     white-space: nowrap;
 }
 .btn-nuevo-cliente:active { background: var(--ocean-deep); color: white; }
+
+.cs-titulo { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cs-editar { color: var(--ocean-light); white-space: nowrap; }
+
+/* Editar / cancelar pedidos */
+.edicion-banner {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    background: #fef3e0; border: 2px solid var(--desayuno-color); color: #8a5300;
+    border-radius: 14px; padding: 10px 14px; margin-bottom: 14px; font-weight: 700;
+}
+.historial-acciones { display: flex; gap: 8px; }
+.historial-acciones button {
+    flex: 1; padding: 10px; border-radius: 10px; font-weight: 700; cursor: pointer; font-size: 0.95rem;
+}
+.btn-editar-pedido { background: var(--pure-white); border: 2px solid var(--ocean-deep); color: var(--ocean-deep); }
+.btn-cancelar-pedido { background: var(--pure-white); border: 2px solid #c0392b; color: #c0392b; }
+.btn-editar-pedido:active { background: var(--ocean-deep); color: white; }
+.btn-cancelar-pedido:active { background: #c0392b; color: white; }
+.tag-modificado {
+    align-self: flex-start; font-size: 0.8rem; font-weight: 700;
+    background: #fef3e0; color: #c0720b; border-radius: 8px; padding: 3px 9px;
+}
+.pedido-estado-cancelado { background: #fdecea; color: #c0392b; text-decoration: line-through; }
+.pedido-cancelado { opacity: 0.75; border: 2px dashed #c0392b; }
+.section-cancelados { color: #c0392b; border-bottom-color: #f5c6c0; }
